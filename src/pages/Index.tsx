@@ -1,12 +1,60 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState } from 'react';
+import LandingPage from '../components/LandingPage';
+import AyahSelectionPage from '../components/AyahSelectionPage';
+import MemorizationPage from '../components/MemorizationPage';
+import ProgressPage from '../components/ProgressPage';
+
+type Page = 'landing' | 'selection' | 'memorization' | 'progress';
+
+interface SelectedAyah {
+  surah: number;
+  ayah: number;
+}
 
 const Index = () => {
+  const [currentPage, setCurrentPage] = useState<Page>('landing');
+  const [selectedAyah, setSelectedAyah] = useState<SelectedAyah>({ surah: 1, ayah: 1 });
+  const [memorizedAyahs, setMemorizedAyahs] = useState<SelectedAyah[]>([]);
+
+  const navigateToPage = (page: Page) => {
+    setCurrentPage(page);
+  };
+
+  const handleAyahSelection = (surah: number, ayah: number) => {
+    setSelectedAyah({ surah, ayah });
+    setCurrentPage('memorization');
+  };
+
+  const markAsMemorized = (surah: number, ayah: number) => {
+    const newMemorized = { surah, ayah };
+    setMemorizedAyahs(prev => [...prev, newMemorized]);
+  };
+
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case 'landing':
+        return <LandingPage onStartMemorizing={() => navigateToPage('selection')} />;
+      case 'selection':
+        return <AyahSelectionPage onAyahSelect={handleAyahSelection} onBack={() => navigateToPage('landing')} />;
+      case 'memorization':
+        return (
+          <MemorizationPage
+            selectedAyah={selectedAyah}
+            onMarkMemorized={markAsMemorized}
+            onNavigate={navigateToPage}
+          />
+        );
+      case 'progress':
+        return <ProgressPage memorizedAyahs={memorizedAyahs} onNavigate={navigateToPage} />;
+      default:
+        return <LandingPage onStartMemorizing={() => navigateToPage('selection')} />;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50">
+      {renderCurrentPage()}
     </div>
   );
 };
