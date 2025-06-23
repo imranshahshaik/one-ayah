@@ -26,12 +26,6 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: Memoriz
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { data: ayahData, isLoading, error } = useAyahData(selectedAyah.surah, selectedAyah.ayah);
 
-  // Sample transliteration for fallback (you can expand this)
-  const transliterationMap: { [key: string]: string } = {
-    "إِنَّ مَعَ الْعُسْرِ يُسْرًا": "Inna ma'a al-'usri yusra",
-    // Add more transliterations as needed
-  };
-
   useEffect(() => {
     if (ayahData?.audio) {
       if (audioRef.current) {
@@ -80,7 +74,6 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: Memoriz
         setIsPlaying(false);
       } else {
         if (currentRepeat === 1 && audioRef.current.currentTime === 0) {
-          // Starting fresh
           console.log('Starting audio playback');
         }
         await audioRef.current.play();
@@ -146,10 +139,10 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: Memoriz
             </div>
           </Card>
 
-          {/* Translation - Using a simple translation for now */}
+          {/* Translation */}
           <Card className="p-4 bg-white/60 backdrop-blur-sm">
             <p className="text-base text-slate-700 text-center italic">
-              Translation will be available soon.
+              {ayahData.translation || "Translation not available"}
             </p>
           </Card>
 
@@ -169,7 +162,7 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: Memoriz
           {showTransliteration && (
             <Card className="p-4 bg-emerald-50 border-emerald-200">
               <p className="text-sm text-emerald-800 text-center">
-                {transliterationMap[ayahData.text] || "Transliteration not available"}
+                {ayahData.transliteration || "Transliteration not available"}
               </p>
             </Card>
           )}
