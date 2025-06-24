@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,14 +8,16 @@ import { Progress } from '@/components/ui/progress';
 import BottomNavbar from './BottomNavbar';
 import { ArrowLeft, ArrowRight, Play, Pause, Loader2 } from 'lucide-react';
 import { useAyahData } from '../hooks/useAyahData';
+import { surahs } from '../data/surahs';
 
 interface MemorizationPageProps {
   selectedAyah: { surah: number; ayah: number };
   onMarkMemorized: (surah: number, ayah: number) => void;
   onNavigate: (page: 'landing' | 'selection' | 'memorization' | 'progress') => void;
+  onAyahChange?: (surah: number, ayah: number) => void;
 }
 
-const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: MemorizationPageProps) => {
+const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahChange }: MemorizationPageProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showTransliteration, setShowTransliteration] = useState(false);
   const [repeatCount, setRepeatCount] = useState('5');
@@ -25,6 +26,69 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: Memoriz
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { data: ayahData, isLoading, error } = useAyahData(selectedAyah.surah, selectedAyah.ayah);
+
+  const getCurrentSurah = () => surahs.find(s => s.number === selectedAyah.surah);
+
+  const canGoNext = () => {
+    const currentSurah = getCurrentSurah();
+    if (!currentSurah) return false;
+    
+    if (selectedAyah.ayah < currentSurah.numberOfAyahs) {
+      return true; // Can go to next ayah in same surah
+    }
+    
+    // Check if there's a next surah
+    return selectedAyah.surah < 114;
+  };
+
+  const canGoPrevious = () => {
+    if (selectedAyah.ayah > 1) {
+      return true; // Can go to previous ayah in same surah
+    }
+    
+    // Check if there's a previous surah
+    return selectedAyah.surah > 1;
+  };
+
+  const handleNext = () => {
+    if (!canGoNext() || !onAyahChange) return;
+    
+    const currentSurah = getCurrentSurah();
+    if (!currentSurah) return;
+    
+    if (selectedAyah.ayah < currentSurah.numberOfAyahs) {
+      // Go to next ayah in same surah
+      onAyahChange(selectedAyah.surah, selectedAyah.ayah + 1);
+    } else if (selectedAyah.surah < 114) {
+      // Go to first ayah of next surah
+      onAyahChange(selectedAyah.surah + 1, 1);
+    }
+    
+    // Reset states for new ayah
+    setIsPlaying(false);
+    setCurrentRepeat(1);
+    setIsMemorized(false);
+  };
+
+  const handlePrevious = () => {
+    if (!canGoPrevious() || !onAyahChange) return;
+    
+    if (selectedAyah.ayah > 1) {
+      // Go to previous ayah in same surah
+      onAyahChange(selectedAyah.surah, selectedAyah.ayah - 1);
+    } else if (selectedAyah.surah > 1) {
+      // Go to last ayah of previous surah
+      const prevSurah = surahs.find(s => s.number === selectedAyah.surah - 1);
+      if (prevSurah) {
+        onAyahChange(selectedAyah.surah - 1, prevSurah.numberOfAyahs);
+      }
+    }
+    
+    // Reset states for new ayah
+    setIsPlaying(false);
+    setCurrentRepeat(1);
+    setIsMemorized(false);
+  };
 
   useEffect(() => {
     if (ayahData?.audio) {
@@ -221,11 +285,20 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate }: Memoriz
 
           {/* Navigation */}
           <div className="flex justify-between pt-4">
-            <Button variant="outline" className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              className="flex items-center space-x-2"
+              onClick={handlePrevious}
+              disabled={!canGoPrevious()}
+            >
               <ArrowLeft className="h-4 w-4" />
               <span>Previous</span>
             </Button>
-            <Button className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700">
+            <Button 
+              className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700"
+              onClick={handleNext}
+              disabled={!canGoNext()}
+            >
               <span>Next</span>
               <ArrowRight className="h-4 w-4" />
             </Button>

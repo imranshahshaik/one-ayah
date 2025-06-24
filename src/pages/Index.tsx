@@ -26,6 +26,10 @@ const Index = () => {
     setCurrentPage('memorization');
   };
 
+  const handleAyahChange = (surah: number, ayah: number) => {
+    setSelectedAyah({ surah, ayah });
+  };
+
   const markAsMemorized = (surah: number, ayah: number) => {
     const newMemorized = { surah, ayah };
     setMemorizedAyahs(prev => [...prev, newMemorized]);
@@ -43,6 +47,7 @@ const Index = () => {
             selectedAyah={selectedAyah}
             onMarkMemorized={markAsMemorized}
             onNavigate={navigateToPage}
+            onAyahChange={handleAyahChange}
           />
         );
       case 'progress':
