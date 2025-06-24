@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
+import { surahs } from '../data/surahs';
 
 interface AyahSelectionPageProps {
   onAyahSelect: (surah: number, ayah: number) => void;
@@ -14,28 +15,34 @@ interface AyahSelectionPageProps {
 const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => {
   const [selectedSurah, setSelectedSurah] = useState<string>('1');
   const [ayahNumber, setAyahNumber] = useState<string>('1');
+  const [maxAyahs, setMaxAyahs] = useState<number>(7);
+
+  // Update max ayahs when surah changes
+  useEffect(() => {
+    const surah = surahs.find(s => s.number === parseInt(selectedSurah));
+    if (surah) {
+      setMaxAyahs(surah.numberOfAyahs);
+      // Reset ayah number if it exceeds the new surah's ayah count
+      if (parseInt(ayahNumber) > surah.numberOfAyahs) {
+        setAyahNumber('1');
+      }
+    }
+  }, [selectedSurah, ayahNumber]);
 
   const handleGo = () => {
     const surah = parseInt(selectedSurah);
     const ayah = parseInt(ayahNumber);
-    if (surah && ayah) {
+    if (surah && ayah && ayah <= maxAyahs) {
       onAyahSelect(surah, ayah);
     }
   };
 
-  // Sample surah names (first 10 for demo)
-  const surahs = [
-    { number: 1, name: "Al-Fatihah" },
-    { number: 2, name: "Al-Baqarah" },
-    { number: 3, name: "Aal-E-Imran" },
-    { number: 4, name: "An-Nisa" },
-    { number: 5, name: "Al-Ma'idah" },
-    { number: 6, name: "Al-An'am" },
-    { number: 7, name: "Al-A'raf" },
-    { number: 8, name: "Al-Anfal" },
-    { number: 9, name: "At-Tawbah" },
-    { number: 10, name: "Yunus" },
-  ];
+  const handleAyahChange = (value: string) => {
+    const ayah = parseInt(value);
+    if (ayah <= maxAyahs) {
+      setAyahNumber(value);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -56,10 +63,10 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
               <SelectTrigger className="w-full h-12 text-left">
                 <SelectValue placeholder="Choose a Surah" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60 overflow-y-auto">
                 {surahs.map((surah) => (
                   <SelectItem key={surah.number} value={surah.number.toString()}>
-                    {surah.number}. {surah.name}
+                    {surah.number}. {surah.englishName} ({surah.numberOfAyahs} ayahs)
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -68,14 +75,15 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
 
           <div className="space-y-2">
             <Label htmlFor="ayah-input" className="text-base font-medium text-slate-700">
-              Starting Ayah Number
+              Starting Ayah Number (1-{maxAyahs})
             </Label>
             <Input
               id="ayah-input"
               type="number"
               min="1"
+              max={maxAyahs}
               value={ayahNumber}
-              onChange={(e) => setAyahNumber(e.target.value)}
+              onChange={(e) => handleAyahChange(e.target.value)}
               className="w-full h-12 text-center text-lg"
               placeholder="1"
             />
@@ -83,7 +91,8 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
 
           <Button 
             onClick={handleGo}
-            className="w-full py-4 text-lg font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+            disabled={parseInt(ayahNumber) > maxAyahs || parseInt(ayahNumber) < 1}
+            className="w-full py-4 text-lg font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Go
           </Button>
