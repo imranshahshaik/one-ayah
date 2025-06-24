@@ -4,8 +4,9 @@ import LandingPage from '../components/LandingPage';
 import AyahSelectionPage from '../components/AyahSelectionPage';
 import MemorizationPage from '../components/MemorizationPage';
 import ProgressPage from '../components/ProgressPage';
+import SettingsPage from '../components/SettingsPage';
 
-type Page = 'landing' | 'selection' | 'memorization' | 'progress';
+type Page = 'landing' | 'selection' | 'memorization' | 'progress' | 'settings';
 
 interface SelectedAyah {
   surah: number;
@@ -52,13 +53,15 @@ const Index = () => {
         );
       case 'progress':
         return <ProgressPage memorizedAyahs={memorizedAyahs} onNavigate={navigateToPage} />;
+      case 'settings':
+        return <SettingsPage onNavigate={navigateToPage} />;
       default:
         return <LandingPage onStartMemorizing={() => navigateToPage('selection')} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
       {renderCurrentPage()}
     </div>
   );

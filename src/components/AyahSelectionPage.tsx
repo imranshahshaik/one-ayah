@@ -61,15 +61,22 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
 
   // Update max ayahs when surah changes
   useEffect(() => {
-    const surah = surahs.find(s => s.number === parseInt(selectedSurah));
+    let surah;
+    if (selectionMode === 'all') {
+      surah = surahs.find(s => s.number === parseInt(selectedSurah));
+    } else {
+      surah = smallSurahs.find(s => s.number === parseInt(selectedSurah));
+    }
+    
     if (surah) {
-      setMaxAyahs(surah.numberOfAyahs);
+      const ayahCount = selectionMode === 'all' ? surah.numberOfAyahs : surah.ayahs;
+      setMaxAyahs(ayahCount);
       // Reset ayah number if it exceeds the new surah's ayah count
-      if (parseInt(ayahNumber) > surah.numberOfAyahs) {
+      if (parseInt(ayahNumber) > ayahCount) {
         setAyahNumber('1');
       }
     }
-  }, [selectedSurah, ayahNumber]);
+  }, [selectedSurah, ayahNumber, selectionMode]);
 
   const handleGo = () => {
     const surah = parseInt(selectedSurah);
@@ -84,6 +91,17 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
     if (ayah <= maxAyahs) {
       setAyahNumber(value);
     }
+  };
+
+  const handleModeChange = (mode: 'all' | 'small') => {
+    setSelectionMode(mode);
+    // Reset to first surah of the selected mode
+    if (mode === 'all') {
+      setSelectedSurah('1');
+    } else {
+      setSelectedSurah('78'); // First small surah
+    }
+    setAyahNumber('1');
   };
 
   const handleSmallSurahSelect = (surahNumber: string) => {
@@ -105,7 +123,7 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
           {/* Selection Mode Toggle */}
           <div className="flex bg-slate-100 rounded-lg p-1">
             <button
-              onClick={() => setSelectionMode('all')}
+              onClick={() => handleModeChange('all')}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                 selectionMode === 'all'
                   ? 'bg-white text-slate-900 shadow-sm'
@@ -115,7 +133,7 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
               All Surahs
             </button>
             <button
-              onClick={() => setSelectionMode('small')}
+              onClick={() => handleModeChange('small')}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                 selectionMode === 'small'
                   ? 'bg-white text-slate-900 shadow-sm'
