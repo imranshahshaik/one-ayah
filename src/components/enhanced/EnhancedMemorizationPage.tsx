@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ArrowRight, CheckCircle, Star, Award } from 'lucide-react';
-import MemorizationPlayer from '../MemorizationPlayer';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, ArrowRight, CheckCircle, Star, Award, Settings } from 'lucide-react';
+import StrictAudioPlayer from './StrictAudioPlayer';
 import { supabaseService, type UserSettings } from '@/services/SupabaseService';
 import { getPageForAyah } from '@/data/mushafPages';
 import { useToast } from '@/hooks/use-toast';
+import { useAyahData } from '@/hooks/useAyahData';
 import { surahs } from '@/data/surahs';
 
 interface EnhancedMemorizationPageProps {
@@ -14,31 +17,48 @@ interface EnhancedMemorizationPageProps {
   onMarkMemorized: (surah: number, ayah: number) => void;
   onNavigate: (page: string) => void;
   onAyahChange?: (surah: number, ayah: number) => void;
+  debugMode?: boolean;
 }
 
 const EnhancedMemorizationPage = ({ 
   selectedAyah, 
   onMarkMemorized, 
   onNavigate, 
-  onAyahChange 
+  onAyahChange,
+  debugMode = false
 }: EnhancedMemorizationPageProps) => {
   const [isMemorized, setIsMemorized] = useState(false);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTransliteration, setShowTransliteration] = useState(true);
+  
   const { toast } = useToast();
+  const { data: ayahData, isLoading: ayahLoading, error } = useAyahData(selectedAyah.surah, selectedAyah.ayah);
 
   useEffect(() => {
     loadSettings();
     setPageNumber(getPageForAyah(selectedAyah.surah, selectedAyah.ayah));
+    setIsMemorized(false); // Reset when ayah changes
   }, [selectedAyah]);
+
+  const debugLog = (message: string, data?: any) => {
+    if (debugMode) {
+      console.debug(`[EnhancedMemorizationPage] ${message}`, data || '');
+    }
+  };
 
   const loadSettings = async () => {
     setIsLoading(true);
     try {
       const userSettings = await supabaseService.getUserSettings();
-      setSettings(userSettings);
+      if (userSettings) {
+        setSettings(userSettings);
+        setShowTransliteration(userSettings.transliteration_on);
+        debugLog('Settings loaded', userSettings);
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
     } finally {
@@ -79,7 +99,7 @@ const EnhancedMemorizationPage = ({
       onAyahChange(selectedAyah.surah + 1, 1);
     }
     
-    setIsMemorized(false);
+    debugLog('Navigated to next ayah');
   };
 
   const handlePrevious = () => {
@@ -94,11 +114,13 @@ const EnhancedMemorizationPage = ({
       }
     }
     
-    setIsMemorized(false);
+    debugLog('Navigated to previous ayah');
   };
 
   const handleMarkMemorized = async () => {
     try {
+      debugLog('Marking ayah as memorized', { surah: selectedAyah.surah, ayah: selectedAyah.ayah });
+      
       // Add to database
       await supabaseService.addMemorizedAyah(
         selectedAyah.surah, 
@@ -148,9 +170,11 @@ const EnhancedMemorizationPage = ({
     }
   };
 
-  const handlePlayerComplete = () => {
-    // Auto-mark as memorized when player completes all repetitions
-    if (!isMemorized && settings?.auto_play) {
+  const handleAudioComplete = () => {
+    debugLog('Audio playback completed');
+    
+    // Auto-mark as memorized if enabled in settings
+    if (settings?.auto_play && !isMemorized) {
       handleMarkMemorized();
     }
   };
@@ -162,13 +186,46 @@ const EnhancedMemorizationPage = ({
       
       // Save to database
       await supabaseService.updateUserSettings(updatedSettings);
+      debugLog('Settings updated', newSettings);
     }
   };
 
-  if (isLoading) {
+  const getFontSizeClass = (fontSize: string) => {
+    const sizeMap = {
+      'small': 'text-xl',
+      'medium': 'text-2xl',
+      'large': 'text-3xl',
+      'extra-large': 'text-4xl'
+    };
+    return sizeMap[fontSize as keyof typeof sizeMap] || 'text-2xl';
+  };
+
+  if (isLoading || ayahLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">Loading ayah...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !ayahData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
+        <Card className="p-6 max-w-md mx-auto text-center">
+          <div className="text-red-600 mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+            Failed to Load Ayah
+          </h3>
+          <p className="text-slate-600 dark:text-slate-400 mb-4">
+            Could not load Surah {selectedAyah.surah}, Ayah {selectedAyah.ayah}
+          </p>
+          <Button onClick={() => onNavigate('selection')}>
+            Select Different Ayah
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -204,12 +261,16 @@ const EnhancedMemorizationPage = ({
               <div className="flex items-center space-x-2">
                 <Badge variant="outline">Page {pageNumber}</Badge>
                 {isMemorized && (
-                  <Badge className="bg-green-100 text-green-800">
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                     <CheckCircle className="h-3 w-3 mr-1" />
                     Memorized
                   </Badge>
                 )}
               </div>
+
+              <Button variant="ghost" size="sm" onClick={() => setShowSettings(!showSettings)}>
+                <Settings className="h-4 w-4" />
+              </Button>
             </div>
             
             <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
@@ -220,19 +281,85 @@ const EnhancedMemorizationPage = ({
             </p>
           </div>
 
-          {/* Memorization Player */}
-          <MemorizationPlayer
-            surah={selectedAyah.surah}
-            ayah={selectedAyah.ayah}
-            onComplete={handlePlayerComplete}
-            settings={settings ? {
-              playbackCount: settings.playback_count,
-              showTransliteration: settings.transliteration_on,
-              fontSize: settings.font_size,
-              autoPlay: settings.auto_play
-            } : undefined}
-            onSettingsChange={handleSettingsChange}
-          />
+          {/* Debug Info */}
+          {debugMode && (
+            <Card className="p-3 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <div className="text-xs font-mono space-y-1">
+                <div>Surah: {selectedAyah.surah}, Ayah: {selectedAyah.ayah}</div>
+                <div>Page: {pageNumber}</div>
+                <div>Memorized: {isMemorized ? 'Yes' : 'No'}</div>
+                <div>Settings Loaded: {settings ? 'Yes' : 'No'}</div>
+                <div>Audio URL: {ayahData.audio ? 'Available' : 'Not Available'}</div>
+              </div>
+            </Card>
+          )}
+
+          {/* Settings Panel */}
+          {showSettings && settings && (
+            <Card className="p-4 bg-slate-50 dark:bg-slate-800">
+              <div className="space-y-4">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Quick Settings</h3>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="transliteration" className="text-sm font-medium">
+                    Show Transliteration
+                  </Label>
+                  <Switch
+                    id="transliteration"
+                    checked={showTransliteration}
+                    onCheckedChange={(checked) => {
+                      setShowTransliteration(checked);
+                      handleSettingsChange({ transliteration_on: checked });
+                    }}
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Arabic Text */}
+          <Card className="p-6 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg">
+            <div className="text-center">
+              <p 
+                className={`${getFontSizeClass(settings?.font_size || 'medium')} leading-relaxed text-slate-800 dark:text-slate-200 font-arabic`} 
+                dir="rtl"
+                style={{ fontFamily: 'Amiri, "Times New Roman", serif' }}
+              >
+                {ayahData.text}
+              </p>
+            </div>
+          </Card>
+
+          {/* Translation */}
+          {settings?.translation_on !== false && (
+            <Card className="p-4 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
+              <p className="text-base text-slate-700 dark:text-slate-300 text-center italic leading-relaxed">
+                {ayahData.translation || "Translation not available"}
+              </p>
+            </Card>
+          )}
+
+          {/* Transliteration */}
+          {showTransliteration && (
+            <Card className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+              <p className="text-sm text-emerald-800 dark:text-emerald-300 text-center leading-relaxed">
+                {ayahData.transliteration || "Transliteration not available"}
+              </p>
+            </Card>
+          )}
+
+          {/* Audio Player */}
+          {ayahData.audio && (
+            <Card className="p-6 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg">
+              <StrictAudioPlayer
+                audioUrl={ayahData.audio}
+                defaultRepeatCount={settings?.playback_count || 5}
+                autoPlay={settings?.auto_play || false}
+                onComplete={handleAudioComplete}
+                debugMode={debugMode}
+              />
+            </Card>
+          )}
 
           {/* Mark as Memorized */}
           <Card className="p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
@@ -279,7 +406,7 @@ const EnhancedMemorizationPage = ({
           </div>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Button
               variant="outline"
               onClick={() => onNavigate('progress')}
@@ -296,6 +423,15 @@ const EnhancedMemorizationPage = ({
             >
               <Star className="h-4 w-4" />
               <span>Review</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => onNavigate('pages')}
+              className="flex items-center justify-center space-x-2"
+            >
+              <Award className="h-4 w-4" />
+              <span>Pages</span>
             </Button>
           </div>
         </div>
