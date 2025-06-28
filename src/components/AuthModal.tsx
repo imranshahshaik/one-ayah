@@ -21,10 +21,18 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
+      
+      // Get the current origin, but use the deployed URL if available
+      const redirectTo = window.location.hostname === 'localhost' 
+        ? window.location.origin 
+        : 'https://oneayah.netlify.app';
+      
+      console.log('Redirecting to:', redirectTo);
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: redirectTo,
         },
       });
 
