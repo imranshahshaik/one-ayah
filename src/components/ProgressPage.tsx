@@ -2,14 +2,24 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserProgress } from '@/hooks/useUserProgress';
 import BottomNavbar from './BottomNavbar';
 
 interface ProgressPageProps {
   memorizedAyahs: Array<{ surah: number; ayah: number }>;
-  onNavigate: (page: 'landing' | 'selection' | 'memorization' | 'progress') => void;
+  onNavigate: (page: 'landing' | 'selection' | 'memorization' | 'progress' | 'settings') => void;
 }
 
 const ProgressPage = ({ memorizedAyahs, onNavigate }: ProgressPageProps) => {
+  const { user } = useAuth();
+  const { currentStreak, bestStreak, totalMemorized } = useUserProgress();
+  
+  // Use user progress if authenticated, otherwise use local state
+  const displayedMemorizedAyahs = user ? [] : memorizedAyahs; // User progress is shown in the stats
+  const displayedCount = user ? totalMemorized : memorizedAyahs.length;
+  const displayedStreak = user ? currentStreak : 7; // Default for non-authenticated users
+
   const surahNames: { [key: number]: string } = {
     1: "Al-Fatihah",
     2: "Al-Baqarah",
@@ -29,57 +39,86 @@ const ProgressPage = ({ memorizedAyahs, onNavigate }: ProgressPageProps) => {
         <div className="max-w-md mx-auto space-y-6">
           {/* Header */}
           <div className="text-center py-6">
-            <h1 className="text-2xl font-bold text-slate-800 mb-2">My Progress</h1>
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">
+              {user ? 'My Progress' : 'Progress'}
+            </h1>
             <p className="text-lg text-emerald-600 font-semibold">
-              Ayahs memorized: {memorizedAyahs.length}
+              Ayahs memorized: {displayedCount}
             </p>
-          </div>
-
-          {/* Memorized Ayahs Section */}
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-700">Memorized Ayahs</h2>
-            
-            {memorizedAyahs.length === 0 ? (
-              <Card className="p-6 bg-white/60 backdrop-blur-sm text-center">
-                <p className="text-slate-600">No ayahs memorized yet.</p>
-                <p className="text-sm text-slate-500 mt-2">Start your journey today!</p>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {memorizedAyahs.map((ayah, index) => (
-                  <Card key={index} className="p-4 bg-white/80 backdrop-blur-sm shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="checkbox"
-                          id={`ayah-${index}`}
-                          className="h-4 w-4 text-emerald-600 rounded focus:ring-emerald-500"
-                        />
-                        <Label htmlFor={`ayah-${index}`} className="text-sm font-medium text-slate-700">
-                          {surahNames[ayah.surah] || `Surah ${ayah.surah}`}
-                        </Label>
-                      </div>
-                      <span className="text-sm text-slate-500">
-                        Ayah {ayah.ayah}
-                      </span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+            {!user && (
+              <p className="text-sm text-slate-500 mt-2">
+                Sign in to sync your progress across devices
+              </p>
             )}
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 gap-4 pt-4">
+          <div className="grid grid-cols-2 gap-4">
             <Card className="p-4 bg-emerald-100 border-emerald-200 text-center">
-              <div className="text-2xl font-bold text-emerald-700">{memorizedAyahs.length}</div>
+              <div className="text-2xl font-bold text-emerald-700">{displayedCount}</div>
               <div className="text-sm text-emerald-600">Total Ayahs</div>
             </Card>
             <Card className="p-4 bg-blue-100 border-blue-200 text-center">
-              <div className="text-2xl font-bold text-blue-700">7</div>
-              <div className="text-sm text-blue-600">Day Streak</div>
+              <div className="text-2xl font-bold text-blue-700">{displayedStreak}</div>
+              <div className="text-sm text-blue-600">
+                {user ? 'Current Streak' : 'Day Streak'}
+              </div>
             </Card>
+            {user && (
+              <Card className="p-4 bg-yellow-100 border-yellow-200 text-center col-span-2">
+                <div className="text-2xl font-bold text-yellow-700">{bestStreak}</div>
+                <div className="text-sm text-yellow-600">Best Streak</div>
+              </Card>
+            )}
           </div>
+
+          {/* Memorized Ayahs Section - Only show for non-authenticated users */}
+          {!user && (
+            <div className="space-y-3">
+              <h2 className="text-lg font-semibold text-slate-700">Recent Memorized Ayahs</h2>
+              
+              {displayedMemorizedAyahs.length === 0 ? (
+                <Card className="p-6 bg-white/60 backdrop-blur-sm text-center">
+                  <p className="text-slate-600">No ayahs memorized yet.</p>
+                  <p className="text-sm text-slate-500 mt-2">Start your journey today!</p>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {displayedMemorizedAyahs.slice(-5).map((ayah, index) => (
+                    <Card key={index} className="p-4 bg-white/80 backdrop-blur-sm shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked
+                            readOnly
+                            className="h-4 w-4 text-emerald-600 rounded focus:ring-emerald-500"
+                          />
+                          <Label className="text-sm font-medium text-slate-700">
+                            {surahNames[ayah.surah] || `Surah ${ayah.surah}`}
+                          </Label>
+                        </div>
+                        <span className="text-sm text-slate-500">
+                          Ayah {ayah.ayah}
+                        </span>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {user && (
+            <Card className="p-6 bg-white/80 backdrop-blur-sm text-center">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2">
+                Keep up the great work! 🎉
+              </h3>
+              <p className="text-slate-600">
+                Your progress is automatically saved and synced across all your devices.
+              </p>
+            </Card>
+          )}
         </div>
       </div>
 

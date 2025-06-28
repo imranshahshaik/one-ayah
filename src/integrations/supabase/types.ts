@@ -9,13 +9,92 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          best_streak: number | null
+          created_at: string | null
+          current_streak: number | null
+          id: string
+          last_memorized_date: string | null
+          last_visited_ayah: number | null
+          last_visited_surah: number | null
+          memorized_ayahs: Json | null
+          total_memorized: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          best_streak?: number | null
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_memorized_date?: string | null
+          last_visited_ayah?: number | null
+          last_visited_surah?: number | null
+          memorized_ayahs?: Json | null
+          total_memorized?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          best_streak?: number | null
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_memorized_date?: string | null
+          last_visited_ayah?: number | null
+          last_visited_surah?: number | null
+          memorized_ayahs?: Json | null
+          total_memorized?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_user_streak: {
+        Args: { user_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
