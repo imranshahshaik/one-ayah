@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -115,15 +116,23 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
   }, [ayahData?.audio]);
 
   const handleAudioEnded = () => {
-    if (currentRepeat < parseInt(repeatCount)) {
+    const maxRepeats = parseInt(repeatCount);
+    console.log(`Audio ended. Current repeat: ${currentRepeat}, Max repeats: ${maxRepeats}`);
+    
+    if (currentRepeat < maxRepeats) {
       setCurrentRepeat(prev => prev + 1);
       setTimeout(() => {
         if (audioRef.current) {
           audioRef.current.currentTime = 0;
-          audioRef.current.play();
+          audioRef.current.play().catch(error => {
+            console.error('Failed to replay audio:', error);
+            setIsPlaying(false);
+          });
         }
       }, 500);
     } else {
+      // Stop playing after reaching the limit
+      console.log('Audio playback complete - reached repeat limit');
       setIsPlaying(false);
       setCurrentRepeat(1);
     }
@@ -137,6 +146,11 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
+        // Reset to first repeat if we're starting fresh
+        if (currentRepeat > parseInt(repeatCount)) {
+          setCurrentRepeat(1);
+        }
+        
         if (currentRepeat === 1 && audioRef.current.currentTime === 0) {
           console.log('Starting audio playback');
         }
@@ -149,12 +163,21 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
     }
   };
 
+  const handleRepeatCountChange = (newCount: string) => {
+    setRepeatCount(newCount);
+    // Reset current repeat if it exceeds new limit
+    if (currentRepeat > parseInt(newCount)) {
+      setCurrentRepeat(1);
+    }
+  };
+
   const handleMarkMemorized = () => {
     setIsMemorized(true);
     onMarkMemorized(selectedAyah.surah, selectedAyah.ayah);
   };
 
-  const progressPercentage = (currentRepeat / parseInt(repeatCount)) * 100;
+  const maxRepeats = parseInt(repeatCount);
+  const progressPercentage = Math.min((currentRepeat / maxRepeats) * 100, 100);
 
   if (isLoading) {
     return (
@@ -245,16 +268,14 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
               </Button>
               
               <div className="flex-1">
-                <Select value={repeatCount} onValueChange={setRepeatCount}>
+                <Select value={repeatCount} onValueChange={handleRepeatCountChange}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1">1x</SelectItem>
+                    <SelectItem value="3">3x</SelectItem>
                     <SelectItem value="5">5x</SelectItem>
-                    <SelectItem value="10">10x</SelectItem>
-                    <SelectItem value="20">20x</SelectItem>
-                    <SelectItem value="50">50x</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
