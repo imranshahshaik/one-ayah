@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
+import type { Json } from '@/integrations/supabase/types';
 
 interface MemorizedAyah {
   surah: number;
@@ -14,7 +15,7 @@ interface MemorizedAyah {
 interface UserProgress {
   id: string;
   user_id: string;
-  memorized_ayahs: MemorizedAyah[];
+  memorized_ayahs: Json;
   current_streak: number;
   best_streak: number;
   last_memorized_date: string | null;
@@ -24,6 +25,34 @@ interface UserProgress {
   created_at: string;
   updated_at: string;
 }
+
+// Helper functions to convert between Json and MemorizedAyah[]
+const parseMemorizedAyahs = (json: Json): MemorizedAyah[] => {
+  if (!json || !Array.isArray(json)) return [];
+  
+  return json.map(item => {
+    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+      return {
+        surah: typeof item.surah === 'number' ? item.surah : 0,
+        ayah: typeof item.ayah === 'number' ? item.ayah : 0,
+        memorized_at: typeof item.memorized_at === 'string' ? item.memorized_at : new Date().toISOString(),
+      };
+    }
+    return {
+      surah: 0,
+      ayah: 0,
+      memorized_at: new Date().toISOString(),
+    };
+  });
+};
+
+const serializeMemorizedAyahs = (ayahs: MemorizedAyah[]): Json => {
+  return ayahs.map(ayah => ({
+    surah: ayah.surah,
+    ayah: ayah.ayah,
+    memorized_at: ayah.memorized_at,
+  }));
+};
 
 export const useUserProgress = () => {
   const { user } = useAuth();
@@ -52,7 +81,7 @@ export const useUserProgress = () => {
   });
 
   const updateProgressMutation = useMutation({
-    mutationFn: async (updates: Partial<UserProgress>) => {
+    mutationFn: async (updates: Partial<Pick<UserProgress, 'memorized_ayahs' | 'current_streak' | 'best_streak' | 'last_memorized_date' | 'last_visited_surah' | 'last_visited_ayah' | 'total_memorized'>>) => {
       if (!user?.id) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
@@ -82,11 +111,12 @@ export const useUserProgress = () => {
       memorized_at: new Date().toISOString(),
     };
 
-    const updatedMemorizedAyahs = [...(progress.memorized_ayahs || []), newMemorizedAyah];
+    const currentMemorizedAyahs = parseMemorizedAyahs(progress.memorized_ayahs);
+    const updatedMemorizedAyahs = [...currentMemorizedAyahs, newMemorizedAyah];
 
     try {
       await updateProgressMutation.mutateAsync({
-        memorized_ayahs: updatedMemorizedAyahs,
+        memorized_ayahs: serializeMemorizedAyahs(updatedMemorizedAyahs),
         total_memorized: updatedMemorizedAyahs.length,
       });
 
@@ -120,12 +150,14 @@ export const useUserProgress = () => {
     }
   };
 
+  const memorizedAyahs = progress ? parseMemorizedAyahs(progress.memorized_ayahs) : [];
+
   return {
     progress,
     isLoading,
     markAyahMemorized,
     updateLastVisited,
-    memorizedAyahs: progress?.memorized_ayahs || [],
+    memorizedAyahs,
     currentStreak: progress?.current_streak || 0,
     bestStreak: progress?.best_streak || 0,
     totalMemorized: progress?.total_memorized || 0,
