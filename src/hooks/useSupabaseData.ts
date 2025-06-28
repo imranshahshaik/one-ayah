@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
 
 export interface Surah {
   id: number;
@@ -202,16 +203,23 @@ export const useMemorizedAyahs = () => {
 
 // Hook to manage user progress
 export const useUserProgressData = () => {
+  const { user } = useAuth();
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProgress = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('user_progress')
         .select('*')
+        .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
@@ -225,10 +233,17 @@ export const useUserProgressData = () => {
   };
 
   const updateProgress = async (updates: Partial<UserProgress>) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const { data, error } = await supabase
         .from('user_progress')
-        .upsert(updates)
+        .upsert({
+          ...updates,
+          user_id: user.id
+        })
         .select()
         .single();
 
@@ -243,7 +258,7 @@ export const useUserProgressData = () => {
 
   useEffect(() => {
     fetchProgress();
-  }, []);
+  }, [user?.id]);
 
   return {
     progress,
