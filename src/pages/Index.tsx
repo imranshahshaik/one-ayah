@@ -11,7 +11,8 @@ import SettingsManager from '../components/SettingsManager';
 import AuthModal from '../components/AuthModal';
 import UserMenu from '../components/UserMenu';
 import { useAuth } from '../hooks/useAuth';
-import { supabaseService } from '@/services/SupabaseService';
+import { useMemorizedAyahs, useUserProgressData } from '@/hooks/useSupabaseData';
+import { supabase } from '@/integrations/supabase/client';
 
 type Page = 'landing' | 'selection' | 'memorization' | 'progress' | 'settings' | 'review' | 'calendar' | 'pages';
 
@@ -23,11 +24,12 @@ interface SelectedAyah {
 const Index = () => {
   const [currentPage, setCurrentPage] = useState<Page>('landing');
   const [selectedAyah, setSelectedAyah] = useState<SelectedAyah>({ surah: 1, ayah: 1 });
-  const [memorizedAyahs, setMemorizedAyahs] = useState<SelectedAyah[]>([]);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [dueReviewsCount, setDueReviewsCount] = useState(0);
   
   const { user, loading: authLoading } = useAuth();
+  const { memorizedAyahs, addMemorizedAyah } = useMemorizedAyahs();
+  const { progress, updateProgress } = useUserProgressData();
 
   useEffect(() => {
     if (user) {
@@ -38,21 +40,10 @@ const Index = () => {
 
   const loadUserData = async () => {
     try {
-      // Load user's last visited ayah and other data
-      const memorizedAyahsData = await supabaseService.getMemorizedAyahs();
-      const localMemorizedAyahs = memorizedAyahsData.map(ayah => ({
-        surah: ayah.surah_number,
-        ayah: ayah.ayah_number,
-      }));
-      setMemorizedAyahs(localMemorizedAyahs);
-
-      // Set last visited ayah if available
-      if (memorizedAyahsData.length > 0) {
-        const lastMemorized = memorizedAyahsData[0];
-        setSelectedAyah({
-          surah: lastMemorized.surah_number,
-          ayah: lastMemorized.ayah_number + 1 // Next ayah to memorize
-        });
+      // If user has progress, set the last visited ayah
+      if (progress?.last_ayah) {
+        const [surah, ayah] = progress.last_ayah.split(':').map(Number);
+        setSelectedAyah({ surah, ayah });
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -61,13 +52,9 @@ const Index = () => {
 
   const checkDueReviews = async () => {
     try {
-      const dueReviews = await supabaseService.getDueReviews();
-      setDueReviewsCount(dueReviews.length);
-      
-      // If user has due reviews, suggest reviewing first
-      if (dueReviews.length > 0 && currentPage === 'landing') {
-        // Could show a notification or badge
-      }
+      // This would be implemented with the spaced repetition system
+      // For now, we'll use a placeholder
+      setDueReviewsCount(0);
     } catch (error) {
       console.error('Error checking due reviews:', error);
     }
@@ -81,28 +68,48 @@ const Index = () => {
     setSelectedAyah({ surah, ayah });
     setCurrentPage('memorization');
     
-    // Update last visited if user is logged in
-    if (user) {
-      supabaseService.updateDailySession({
-        session_date: new Date().toISOString().split('T')[0]
+    // Update user progress if logged in
+    if (user && updateProgress) {
+      updateProgress({
+        last_ayah: `${surah}:${ayah}`,
+        last_surah: surah,
+        last_ayah_number: ayah,
+        last_updated: new Date().toISOString()
       });
     }
   };
 
+  const handleContinueFromLanding = (surah: number, ayah: number) => {
+    setSelectedAyah({ surah, ayah });
+    setCurrentPage('memorization');
+  };
+
   const handleAyahChange = (surah: number, ayah: number) => {
     setSelectedAyah({ surah, ayah });
+    
+    // Update user progress if logged in
+    if (user && updateProgress) {
+      updateProgress({
+        last_ayah: `${surah}:${ayah}`,
+        last_surah: surah,
+        last_ayah_number: ayah,
+        last_updated: new Date().toISOString()
+      });
+    }
   };
 
   const handleMarkAsMemorized = async (surah: number, ayah: number) => {
-    const newMemorized = { surah, ayah };
-    
-    if (user) {
-      // This is handled in the EnhancedMemorizationPage
-      // Just update local state for immediate UI feedback
-      setMemorizedAyahs(prev => [...prev, newMemorized]);
-    } else {
-      // Save locally for non-authenticated users
-      setMemorizedAyahs(prev => [...prev, newMemorized]);
+    if (user && addMemorizedAyah) {
+      try {
+        await addMemorizedAyah(surah, ayah);
+        
+        // Update streak
+        await supabase.rpc('update_user_streak', { user_uuid: user.id });
+        
+        console.log(`Ayah ${surah}:${ayah} marked as memorized`);
+      } catch (error) {
+        console.error('Error marking ayah as memorized:', error);
+      }
     }
   };
 
@@ -111,6 +118,11 @@ const Index = () => {
       // Check if user has due reviews first
       if (dueReviewsCount > 0) {
         setCurrentPage('review');
+      } else if (progress?.last_ayah) {
+        // Continue from where they left off
+        const [surah, ayah] = progress.last_ayah.split(':').map(Number);
+        setSelectedAyah({ surah, ayah });
+        setCurrentPage('memorization');
       } else {
         setCurrentPage('selection');
       }
@@ -130,6 +142,7 @@ const Index = () => {
         return (
           <LandingPage 
             onStartMemorizing={handleStartMemorizing}
+            onContinue={handleContinueFromLanding}
             dueReviewsCount={dueReviewsCount}
           />
         );
@@ -152,7 +165,7 @@ const Index = () => {
       case 'progress':
         return (
           <ProgressPage 
-            memorizedAyahs={memorizedAyahs} 
+            memorizedAyahs={memorizedAyahs.map(ma => ({ surah: ma.surah_number, ayah: ma.ayah_number }))} 
             onNavigate={navigateToPage} 
           />
         );
@@ -236,7 +249,6 @@ const Index = () => {
               </div>
               <PageStitcher 
                 onPageComplete={(pageNumber) => {
-                  // Handle page completion celebration
                   console.log(`Page ${pageNumber} completed!`);
                 }}
                 onNavigate={navigateToPage}
@@ -248,6 +260,7 @@ const Index = () => {
         return (
           <LandingPage 
             onStartMemorizing={handleStartMemorizing}
+            onContinue={handleContinueFromLanding}
             dueReviewsCount={dueReviewsCount}
           />
         );

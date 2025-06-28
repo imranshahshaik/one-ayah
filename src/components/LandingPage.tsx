@@ -3,22 +3,34 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { Calendar, BookOpen, Star, ArrowRight, Bell } from 'lucide-react';
+import { useUserProgressData } from '@/hooks/useSupabaseData';
+import ContinueButton from './enhanced/ContinueButton';
+import { Calendar, BookOpen, Star, ArrowRight, Bell, Flame, Trophy } from 'lucide-react';
 
 interface LandingPageProps {
   onStartMemorizing: () => void;
+  onContinue?: (surah: number, ayah: number) => void;
   dueReviewsCount?: number;
 }
 
-const LandingPage = ({ onStartMemorizing, dueReviewsCount = 0 }: LandingPageProps) => {
+const LandingPage = ({ onStartMemorizing, onContinue, dueReviewsCount = 0 }: LandingPageProps) => {
   const { user } = useAuth();
+  const { progress } = useUserProgressData();
+
+  const handleContinue = (surah: number, ayah: number) => {
+    if (onContinue) {
+      onContinue(surah, ayah);
+    } else {
+      onStartMemorizing();
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
       <div className="max-w-md mx-auto space-y-8">
         {/* App Logo/Title */}
         <div className="space-y-4">
-          <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
             <BookOpen className="h-10 w-10 text-white" />
           </div>
           
@@ -37,13 +49,33 @@ const LandingPage = ({ onStartMemorizing, dueReviewsCount = 0 }: LandingPageProp
               <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
                 Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'User'}! 🌟
               </p>
+              {progress && (
+                <div className="flex items-center justify-center space-x-4 mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                  <div className="flex items-center space-x-1">
+                    <Flame className="h-3 w-3" />
+                    <span>{progress.streak} day streak</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Trophy className="h-3 w-3" />
+                    <span>{progress.total_memorized} memorized</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
+        {/* Continue Button for Authenticated Users */}
+        {user && progress && progress.last_ayah && (
+          <ContinueButton 
+            onContinue={handleContinue}
+            className="animate-fade-in-up"
+          />
+        )}
+
         {/* Due Reviews Alert */}
         {user && dueReviewsCount > 0 && (
-          <Card className="p-4 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
+          <Card className="p-4 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 animate-fade-in-up">
             <div className="flex items-center space-x-3">
               <Bell className="h-5 w-5 text-orange-600" />
               <div className="text-left">
@@ -73,10 +105,15 @@ const LandingPage = ({ onStartMemorizing, dueReviewsCount = 0 }: LandingPageProp
                   <Star className="h-5 w-5 mr-2" />
                   Start Review Session
                 </>
-              ) : (
+              ) : progress?.last_ayah ? (
                 <>
                   <BookOpen className="h-5 w-5 mr-2" />
                   Continue Memorizing
+                </>
+              ) : (
+                <>
+                  <BookOpen className="h-5 w-5 mr-2" />
+                  Start Memorizing
                 </>
               )
             ) : (
@@ -136,8 +173,13 @@ const LandingPage = ({ onStartMemorizing, dueReviewsCount = 0 }: LandingPageProp
             📖 Page-aware memorization tracking
           </p>
           <p>
-            🎯 Daily habit formation
+            🎯 Daily habit formation with streak tracking
           </p>
+          {user && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-medium">
+              🔐 Your progress is automatically saved
+            </p>
+          )}
         </div>
       </div>
     </div>

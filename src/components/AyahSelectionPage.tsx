@@ -1,18 +1,18 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft } from 'lucide-react';
-import { surahs } from '../data/surahs';
+import { Card } from '@/components/ui/card';
+import { ArrowLeft, BookOpen, Loader2 } from 'lucide-react';
+import { useSurahs } from '@/hooks/useSupabaseData';
 
 interface AyahSelectionPageProps {
   onAyahSelect: (surah: number, ayah: number) => void;
   onBack: () => void;
 }
 
-// Small surahs from the 30th Juz (Para)
+// Small surahs from the 30th Juz (Para) for quick access
 const smallSurahs = [
   { number: 78, name: 'An-Naba', ayahs: 40 },
   { number: 79, name: 'An-Naziat', ayahs: 46 },
@@ -58,6 +58,8 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
   const [ayahNumber, setAyahNumber] = useState<string>('1');
   const [maxAyahs, setMaxAyahs] = useState<number>(7);
   const [selectionMode, setSelectionMode] = useState<'all' | 'small'>('all');
+  
+  const { surahs, loading, error } = useSurahs();
 
   // Update max ayahs when surah changes
   useEffect(() => {
@@ -69,14 +71,14 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
     }
     
     if (surah) {
-      const ayahCount = selectionMode === 'all' ? surah.numberOfAyahs : surah.ayahs;
+      const ayahCount = selectionMode === 'all' ? surah.number_of_ayahs : surah.ayahs;
       setMaxAyahs(ayahCount);
       // Reset ayah number if it exceeds the new surah's ayah count
       if (parseInt(ayahNumber) > ayahCount) {
         setAyahNumber('1');
       }
     }
-  }, [selectedSurah, ayahNumber, selectionMode]);
+  }, [selectedSurah, ayahNumber, selectionMode, surahs]);
 
   const handleGo = () => {
     const surah = parseInt(selectedSurah);
@@ -109,25 +111,78 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
     setAyahNumber('1');
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
+        <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-700">
+          <Button variant="ghost" size="sm" onClick={onBack} className="p-2">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-200 ml-2">Select Ayah</h1>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
+            <p className="text-slate-600 dark:text-slate-400">Loading surahs...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
+        <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-700">
+          <Button variant="ghost" size="sm" onClick={onBack} className="p-2">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-200 ml-2">Select Ayah</h1>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="p-6 max-w-md mx-auto">
+            <div className="text-center">
+              <div className="text-red-600 mb-4">⚠️</div>
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+                Database Connection Issue
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
+                {error}
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-500 mb-4">
+                Please check your Supabase connection and ensure the database migration has been run.
+              </p>
+              <Button onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex items-center p-4 border-b border-slate-200">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
+      <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-700">
         <Button variant="ghost" size="sm" onClick={onBack} className="p-2">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-semibold text-slate-800 ml-2">Select Ayah</h1>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-200 ml-2">Select Ayah</h1>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-8">
         <div className="w-full max-w-sm space-y-6">
           {/* Selection Mode Toggle */}
-          <div className="flex bg-slate-100 rounded-lg p-1">
+          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
             <button
               onClick={() => handleModeChange('all')}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                 selectionMode === 'all'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               All Surahs
@@ -136,8 +191,8 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
               onClick={() => handleModeChange('small')}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                 selectionMode === 'small'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               Small Surahs
@@ -145,7 +200,7 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="surah-select" className="text-base font-medium text-slate-700">
+            <Label htmlFor="surah-select" className="text-base font-medium text-slate-700 dark:text-slate-300">
               {selectionMode === 'small' ? 'Select Small Surah (30th Juz)' : 'Select Surah'}
             </Label>
             {selectionMode === 'all' ? (
@@ -156,7 +211,7 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
                 <SelectContent className="max-h-60 overflow-y-auto">
                   {surahs.map((surah) => (
                     <SelectItem key={surah.number} value={surah.number.toString()}>
-                      {surah.number}. {surah.englishName} ({surah.numberOfAyahs} ayahs)
+                      {surah.number}. {surah.english_name} ({surah.number_of_ayahs} ayahs)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -178,7 +233,7 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ayah-input" className="text-base font-medium text-slate-700">
+            <Label htmlFor="ayah-input" className="text-base font-medium text-slate-700 dark:text-slate-300">
               Starting Ayah Number (1-{maxAyahs})
             </Label>
             <Input
@@ -198,8 +253,42 @@ const AyahSelectionPage = ({ onAyahSelect, onBack }: AyahSelectionPageProps) => 
             disabled={parseInt(ayahNumber) > maxAyahs || parseInt(ayahNumber) < 1}
             className="w-full py-4 text-lg font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Go
+            <BookOpen className="h-5 w-5 mr-2" />
+            Start Memorizing
           </Button>
+
+          {/* Quick Access */}
+          <div className="pt-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-3">
+              Quick Access
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedSurah('1');
+                  setAyahNumber('1');
+                  setSelectionMode('all');
+                }}
+                className="text-xs"
+              >
+                Al-Fatihah
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedSurah('112');
+                  setAyahNumber('1');
+                  setSelectionMode('small');
+                }}
+                className="text-xs"
+              >
+                Al-Ikhlas
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
