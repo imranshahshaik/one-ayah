@@ -1,7 +1,7 @@
-
 import { useState, useEffect, createContext, useContext } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import AuthTokenHandler from '@/utils/authTokenHandler';
 
 interface AuthContextType {
   user: User | null;
@@ -16,20 +16,50 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
+    // Initialize secure token handling on app load
+    const initializeAuth = async () => {
+      try {
+        // Handle OAuth tokens securely
+        const tokenData = AuthTokenHandler.initializeSecureHandling();
+        
+        if (tokenData?.access_token) {
+          // Set the session with the parsed tokens
+          const { data, error } = await supabase.auth.setSession({
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token || ''
+          });
+          
+          if (error) {
+            console.error('Error setting session:', error);
+            AuthTokenHandler.clearStoredTokens();
+          } else {
+            setUser(data.session?.user ?? null);
+          }
+        } else {
+          // Get initial session normally
+          const { data: { session } } = await supabase.auth.getSession();
+          setUser(session?.user ?? null);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        AuthTokenHandler.clearStoredTokens();
+      } finally {
+        setLoading(false);
+      }
     };
 
-    getInitialSession();
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Clear stored tokens on sign out
+        if (event === 'SIGNED_OUT') {
+          AuthTokenHandler.clearStoredTokens();
+        }
       }
     );
 
@@ -37,7 +67,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Clear stored tokens before signing out
+      AuthTokenHandler.clearStoredTokens();
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const value = {

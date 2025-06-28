@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -22,10 +21,8 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
     try {
       setIsLoading(true);
       
-      // Get the current origin, but use the deployed URL if available
-      const redirectTo = window.location.hostname === 'localhost' 
-        ? window.location.origin 
-        : 'https://oneayah.netlify.app';
+      // Get the current origin for redirect
+      const redirectTo = window.location.origin;
       
       console.log('Redirecting to:', redirectTo);
       
@@ -33,6 +30,11 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
         provider: 'google',
         options: {
           redirectTo: redirectTo,
+          // Ensure we get the tokens in the hash for secure handling
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 
@@ -43,6 +45,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
           variant: 'destructive',
         });
       } else {
+        // The redirect will happen, and tokens will be handled securely by AuthTokenHandler
         onAuthSuccess();
       }
     } catch (error) {
