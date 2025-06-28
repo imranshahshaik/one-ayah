@@ -45,7 +45,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
           variant: 'destructive',
         });
       } else {
-        // The redirect will happen, and tokens will be handled securely by AuthTokenHandler
+        // The redirect will happen, and tokens will be handled securely by main.tsx
         onAuthSuccess();
       }
     } catch (error) {
