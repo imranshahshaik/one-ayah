@@ -1,16 +1,18 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import BottomNavbar from './BottomNavbar';
 import { ArrowLeft, ArrowRight, Loader2, AlertCircle, CheckCircle, Award } from 'lucide-react';
 import { useAyahData } from '../hooks/useAyahData';
 import { surahs } from '../data/surahs';
 import { getPageForAyah } from '@/data/mushafPages';
 import { useToast } from '@/hooks/use-toast';
-import { useEnhancedMemorization } from './enhanced/useEnhancedMemorization';
+import { useMemorizedAyahs } from '@/hooks/useSupabaseData';
 import EnhancedStrictAudioPlayer from './enhanced/EnhancedStrictAudioPlayer';
 
 interface MemorizationPageProps {
@@ -23,27 +25,26 @@ interface MemorizationPageProps {
 const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahChange }: MemorizationPageProps) => {
   const [showTransliteration, setShowTransliteration] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [isMemorized, setIsMemorized] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const { data: ayahData, isLoading, error } = useAyahData(selectedAyah.surah, selectedAyah.ayah);
+  const { memorizedAyahs } = useMemorizedAyahs();
   const { toast } = useToast();
-  
-  const {
-    session,
-    isProcessing,
-    startSession,
-    updateCompletedRepeats,
-    markAsMemorized,
-    endSession
-  } = useEnhancedMemorization();
 
+  // Check if current ayah is already memorized
   useEffect(() => {
-    // Start session when component mounts or ayah changes
-    startSession(selectedAyah.surah, selectedAyah.ayah, 5);
-    
-    return () => {
-      endSession();
-    };
-  }, [selectedAyah.surah, selectedAyah.ayah, startSession, endSession]);
+    const isAlreadyMemorized = memorizedAyahs.some(
+      ayah => ayah.surah_number === selectedAyah.surah && ayah.ayah_number === selectedAyah.ayah
+    );
+    setIsMemorized(isAlreadyMemorized);
+    console.log('Checking if ayah is memorized:', { 
+      surah: selectedAyah.surah, 
+      ayah: selectedAyah.ayah, 
+      isMemorized: isAlreadyMemorized,
+      totalMemorized: memorizedAyahs.length
+    });
+  }, [selectedAyah, memorizedAyahs]);
 
   const getCurrentSurah = () => surahs.find(s => s.number === selectedAyah.surah);
 
@@ -92,21 +93,39 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
     }
   };
 
-  const handleMarkMemorized = async () => {
-    const success = await markAsMemorized();
+  const handleMarkMemorized = async (checked: boolean) => {
+    if (isProcessing) return;
     
-    if (success) {
-      setShowCelebration(true);
-      onMarkMemorized(selectedAyah.surah, selectedAyah.ayah);
-      
-      setTimeout(() => {
-        setShowCelebration(false);
-      }, 3000);
+    setIsProcessing(true);
+    console.log('Marking ayah as memorized:', { 
+      surah: selectedAyah.surah, 
+      ayah: selectedAyah.ayah, 
+      checked 
+    });
+
+    try {
+      if (checked && !isMemorized) {
+        await onMarkMemorized(selectedAyah.surah, selectedAyah.ayah);
+        setIsMemorized(true);
+        setShowCelebration(true);
+        
+        setTimeout(() => {
+          setShowCelebration(false);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error marking ayah as memorized:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save progress. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handlePlaybackComplete = (completedRepeats: number) => {
-    updateCompletedRepeats(completedRepeats);
     console.log(`Playback completed with ${completedRepeats} repeats`);
   };
 
@@ -244,7 +263,7 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
               
               <div className="flex items-center space-x-2">
                 <Badge variant="outline">Page {pageNumber}</Badge>
-                {session?.isMemorized && (
+                {isMemorized && (
                   <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                     <CheckCircle className="h-3 w-3 mr-1" />
                     Memorized
@@ -319,40 +338,22 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
             )}
           </Card>
 
-          {/* Session Progress */}
-          {session && (
-            <Card className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
-              <div className="text-center space-y-2">
-                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                  Session Progress
-                </p>
-                <div className="flex justify-center space-x-4 text-xs text-emerald-700 dark:text-emerald-400">
-                  <span>Target: {session.targetRepeats}x</span>
-                  <span>Completed: {session.completedRepeats}x</span>
-                  <span>Duration: {Math.round((Date.now() - session.startTime.getTime()) / 60000)}m</span>
-                </div>
-              </div>
-            </Card>
-          )}
-
           {/* Mark as Memorized */}
           <Card className="p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="memorized"
-                  checked={session?.isMemorized || false}
-                  onChange={handleMarkMemorized}
-                  disabled={isProcessing}
-                  className="h-5 w-5 text-emerald-600 rounded focus:ring-emerald-500"
+                  checked={isMemorized}
+                  onCheckedChange={handleMarkMemorized}
+                  disabled={isProcessing || isMemorized}
                 />
                 <Label htmlFor="memorized" className="text-base font-medium text-slate-700 dark:text-slate-300">
                   Mark as Memorized
                 </Label>
               </div>
               
-              {session?.isMemorized && (
+              {isMemorized && (
                 <Award className="h-5 w-5 text-emerald-600" />
               )}
             </div>

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,12 +19,15 @@ const LandingPage = ({ onStartMemorizing, onContinue, dueReviewsCount = 0 }: Lan
   const { progress } = useUserProgressData();
 
   const handleContinue = (surah: number, ayah: number) => {
+    console.log('Continue button clicked:', { surah, ayah });
     if (onContinue) {
       onContinue(surah, ayah);
     } else {
       onStartMemorizing();
     }
   };
+
+  const hasLastVisited = progress && progress.last_visited_surah && progress.last_visited_ayah;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
@@ -53,11 +57,11 @@ const LandingPage = ({ onStartMemorizing, onContinue, dueReviewsCount = 0 }: Lan
                 <div className="flex items-center justify-center space-x-4 mt-2 text-xs text-emerald-600 dark:text-emerald-400">
                   <div className="flex items-center space-x-1">
                     <Flame className="h-3 w-3" />
-                    <span>{progress.streak} day streak</span>
+                    <span>{progress.current_streak || 0} day streak</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Trophy className="h-3 w-3" />
-                    <span>{progress.total_memorized} memorized</span>
+                    <span>{progress.total_memorized || 0} memorized</span>
                   </div>
                 </div>
               )}
@@ -66,7 +70,7 @@ const LandingPage = ({ onStartMemorizing, onContinue, dueReviewsCount = 0 }: Lan
         </div>
 
         {/* Continue Button for Authenticated Users */}
-        {user && progress && progress.last_ayah && (
+        {user && hasLastVisited && (
           <ContinueButton 
             onContinue={handleContinue}
             className="animate-fade-in-up"
@@ -105,7 +109,7 @@ const LandingPage = ({ onStartMemorizing, onContinue, dueReviewsCount = 0 }: Lan
                   <Star className="h-5 w-5 mr-2" />
                   Start Review Session
                 </>
-              ) : progress?.last_ayah ? (
+              ) : hasLastVisited ? (
                 <>
                   <BookOpen className="h-5 w-5 mr-2" />
                   Continue Memorizing

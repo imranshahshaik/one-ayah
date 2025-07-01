@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -24,12 +25,16 @@ const ContinueButton = ({ onContinue, className }: ContinueButtonProps) => {
     );
   }
 
-  if (!progress || !progress.last_ayah) {
+  if (!progress || !progress.last_visited_surah || !progress.last_visited_ayah) {
     return null;
   }
 
   const handleContinue = () => {
-    onContinue(progress.last_surah, progress.last_ayah_number);
+    console.log('ContinueButton: Continuing with', {
+      surah: progress.last_visited_surah,
+      ayah: progress.last_visited_ayah
+    });
+    onContinue(progress.last_visited_surah, progress.last_visited_ayah);
   };
 
   const formatLastUpdated = (dateString: string) => {
@@ -58,7 +63,7 @@ const ContinueButton = ({ onContinue, className }: ContinueButtonProps) => {
             </span>
           </div>
           <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
-            Surah {progress.last_surah}:{progress.last_ayah_number}
+            Surah {progress.last_visited_surah}:{progress.last_visited_ayah}
           </Badge>
         </div>
 
@@ -66,10 +71,10 @@ const ContinueButton = ({ onContinue, className }: ContinueButtonProps) => {
           <div className="text-sm text-emerald-700 dark:text-emerald-400">
             <div className="flex items-center space-x-1">
               <Clock className="h-4 w-4" />
-              <span>Last updated {formatLastUpdated(progress.last_updated)}</span>
+              <span>Last updated {formatLastUpdated(progress.updated_at)}</span>
             </div>
             <div className="mt-1">
-              {progress.total_memorized} ayah{progress.total_memorized === 1 ? '' : 's'} memorized
+              {progress.total_memorized || 0} ayah{(progress.total_memorized || 0) === 1 ? '' : 's'} memorized
             </div>
           </div>
 

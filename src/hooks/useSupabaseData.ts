@@ -140,11 +140,14 @@ export const useMemorizedAyahs = () => {
   const fetchMemorizedAyahs = async () => {
     if (!user?.id) {
       setLoading(false);
+      setMemorizedAyahs([]);
       return;
     }
 
     try {
       setLoading(true);
+      console.log('Fetching memorized ayahs for user:', user.id);
+      
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .select('*')
@@ -152,6 +155,9 @@ export const useMemorizedAyahs = () => {
         .order('memorized_at', { ascending: false });
 
       if (error) throw error;
+      
+      console.log('Fetched memorized ayahs:', data?.length || 0);
+      
       // Map the data to match our interface
       const mappedData: MemorizedAyah[] = (data || []).map(item => ({
         id: item.id,
@@ -169,6 +175,7 @@ export const useMemorizedAyahs = () => {
         created_at: item.created_at,
         updated_at: item.updated_at,
       }));
+      
       setMemorizedAyahs(mappedData);
     } catch (err) {
       console.error('Error fetching memorized ayahs:', err);
@@ -184,6 +191,8 @@ export const useMemorizedAyahs = () => {
     }
 
     try {
+      console.log('Adding memorized ayah:', { surahNumber, ayahNumber });
+      
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .insert({
@@ -215,7 +224,7 @@ export const useMemorizedAyahs = () => {
         updated_at: data.updated_at,
       };
 
-      // Update local state
+      // Update local state immediately
       setMemorizedAyahs(prev => [mappedData, ...prev]);
 
       // Update user progress
@@ -279,11 +288,14 @@ export const useUserProgressData = () => {
   const fetchProgress = async () => {
     if (!user?.id) {
       setLoading(false);
+      setProgress(null);
       return;
     }
 
     try {
       setLoading(true);
+      console.log('Fetching user progress for:', user.id);
+      
       const { data, error } = await supabase
         .from('user_progress')
         .select('*')
@@ -293,6 +305,8 @@ export const useUserProgressData = () => {
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
+        console.log('User progress fetched:', data);
+        
         // Map the data to match our interface with additional computed properties
         const mappedData: UserProgress = {
           id: data.id,
@@ -316,6 +330,9 @@ export const useUserProgressData = () => {
           last_updated: data.updated_at,
         };
         setProgress(mappedData);
+      } else {
+        console.log('No user progress found, creating default');
+        setProgress(null);
       }
     } catch (err) {
       console.error('Error fetching user progress:', err);
@@ -331,6 +348,8 @@ export const useUserProgressData = () => {
     }
 
     try {
+      console.log('Updating user progress:', updates);
+      
       const { data, error } = await supabase
         .from('user_progress')
         .upsert({
