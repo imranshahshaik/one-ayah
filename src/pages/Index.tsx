@@ -7,12 +7,14 @@ import ProgressPage from '../components/ProgressPage';
 import SettingsPage from '../components/SettingsPage';
 import AuthModal from '../components/AuthModal';
 import UserMenu from '../components/UserMenu';
+import ReviewScheduler from '../components/ReviewScheduler';
+import CalendarTracker from '../components/CalendarTracker';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProgressData, useMemorizedAyahs } from '../hooks/useSupabaseData';
 import { supabaseService } from '../services/SupabaseService';
 import { useToast } from '../hooks/use-toast';
 
-type Page = 'landing' | 'selection' | 'memorization' | 'progress' | 'settings';
+type Page = 'landing' | 'selection' | 'memorization' | 'progress' | 'settings' | 'review' | 'calendar';
 
 interface SelectedAyah {
   surah: number;
@@ -23,11 +25,28 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState<Page>('landing');
   const [selectedAyah, setSelectedAyah] = useState<SelectedAyah>({ surah: 1, ayah: 1 });
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [dueReviewsCount, setDueReviewsCount] = useState(0);
   
   const { user, loading: authLoading } = useAuth();
-  const { progress, loading: progressLoading } = useUserProgressData();
-  const { memorizedAyahs, loading: memorizedLoading } = useMemorizedAyahs();
+  const { progress, loading: progressLoading, refetch: refetchProgress } = useUserProgressData();
+  const { memorizedAyahs, loading: memorizedLoading, refetch: refetchMemorized } = useMemorizedAyahs();
   const { toast } = useToast();
+
+  // Load due reviews count for landing page
+  useEffect(() => {
+    const loadDueReviews = async () => {
+      if (user) {
+        try {
+          const reviews = await supabaseService.getDueReviews();
+          setDueReviewsCount(reviews.length);
+        } catch (error) {
+          console.error('Error loading due reviews:', error);
+        }
+      }
+    };
+
+    loadDueReviews();
+  }, [user, memorizedAyahs]); // Refresh when memorized ayahs change
 
   // Update selected ayah when progress loads
   useEffect(() => {
@@ -41,6 +60,13 @@ const Index = () => {
 
   const navigateToPage = (page: Page) => {
     console.log('Navigating to page:', page);
+    
+    // Handle authentication check for protected pages
+    if (!user && (page === 'progress' || page === 'review' || page === 'calendar')) {
+      setShowAuthModal(true);
+      return;
+    }
+    
     setCurrentPage(page);
   };
 
@@ -68,9 +94,12 @@ const Index = () => {
   const updateLastVisitedAyah = async (surah: number, ayah: number) => {
     try {
       if (user) {
-        await supabaseService.updateUserSettings({
-          // We'll use user_settings to track last visited for now
+        await supabaseService.updateUserProgress({
+          last_visited_surah: surah,
+          last_visited_ayah: ayah,
         });
+        // Refresh progress data
+        refetchProgress();
       }
     } catch (error) {
       console.error('Error updating last visited ayah:', error);
@@ -96,9 +125,21 @@ const Index = () => {
       const result = await supabaseService.addMemorizedAyah(surah, ayah, pageNumber);
       
       if (result) {
+        // Refresh all data after memorizing
+        await Promise.all([
+          refetchProgress(),
+          refetchMemorized()
+        ]);
+        
+        // Show success with streak info
+        const updatedProgress = await supabaseService.getUserProgress();
+        const streakMessage = updatedProgress?.current_streak > 1 
+          ? ` 🔥 ${updatedProgress.current_streak} day streak!` 
+          : '';
+          
         toast({
-          title: '✅ Ayah Memorized!',
-          description: `Surah ${surah}, Ayah ${ayah} has been marked as memorized.`,
+          title: '🎉 Ayah Memorized!',
+          description: `Surah ${surah}, Ayah ${ayah} has been added to your collection.${streakMessage}`,
         });
       } else {
         throw new Error('Failed to add memorized ayah');
@@ -117,7 +158,14 @@ const Index = () => {
     console.log('Start memorizing clicked', { user: !!user });
     
     if (user) {
-      // Always go to selection page first for authenticated users
+      // Check if there are due reviews first
+      if (dueReviewsCount > 0) {
+        // Suggest reviewing first but allow continuing
+        toast({
+          title: '📚 Reviews Available',
+          description: `You have ${dueReviewsCount} ayah${dueReviewsCount === 1 ? '' : 's'} due for review. Consider reviewing first!`,
+        });
+      }
       navigateToPage('selection');
     } else {
       setShowAuthModal(true);
@@ -136,6 +184,22 @@ const Index = () => {
     navigateToPage('selection');
   };
 
+  const handleReviewComplete = () => {
+    // Refresh data after completing reviews
+    Promise.all([
+      refetchProgress(),
+      refetchMemorized()
+    ]).then(() => {
+      toast({
+        title: '🎯 Reviews Complete!',
+        description: 'Great job! Your memory is getting stronger.',
+      });
+      
+      // Navigate back to landing or selection
+      navigateToPage('landing');
+    });
+  };
+
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'landing':
@@ -143,6 +207,8 @@ const Index = () => {
           <LandingPage 
             onStartMemorizing={handleStartMemorizing} 
             onContinue={handleContinueFromLanding}
+            dueReviewsCount={dueReviewsCount}
+            onNavigate={navigateToPage}
           />
         );
       case 'selection':
@@ -171,6 +237,33 @@ const Index = () => {
             onNavigate={navigateToPage} 
           />
         );
+      case 'review':
+        return (
+          <ReviewScheduler 
+            onComplete={handleReviewComplete}
+            onNavigate={navigateToPage}
+          />
+        );
+      case 'calendar':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800 p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <button 
+                  onClick={() => navigateToPage('landing')}
+                  className="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  ← Back
+                </button>
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+                  Your Journey
+                </h1>
+                <div></div>
+              </div>
+              <CalendarTracker />
+            </div>
+          </div>
+        );
       case 'settings':
         return <SettingsPage onNavigate={navigateToPage} />;
       default:
@@ -178,6 +271,8 @@ const Index = () => {
           <LandingPage 
             onStartMemorizing={handleStartMemorizing} 
             onContinue={handleContinueFromLanding}
+            dueReviewsCount={dueReviewsCount}
+            onNavigate={navigateToPage}
           />
         );
     }

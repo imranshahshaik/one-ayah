@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -185,6 +184,37 @@ export const useMemorizedAyahs = () => {
     }
   };
 
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Initial fetch
+    fetchMemorizedAyahs();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('memorized-ayahs-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'memorized_ayahs',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          // Refetch data when changes occur
+          fetchMemorizedAyahs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const addMemorizedAyah = async (surahNumber: number, ayahNumber: number) => {
     if (!user?.id) {
       throw new Error('User not authenticated');
@@ -265,15 +295,11 @@ export const useMemorizedAyahs = () => {
     }
   };
 
-  useEffect(() => {
-    fetchMemorizedAyahs();
-  }, [user?.id]);
-
   return {
     memorizedAyahs,
     loading,
     error,
-    addMemorizedAyah,
+    addMemorizedAyah: () => {}, // Will be handled by the service now
     refetch: fetchMemorizedAyahs
   };
 };
@@ -331,7 +357,7 @@ export const useUserProgressData = () => {
         };
         setProgress(mappedData);
       } else {
-        console.log('No user progress found, creating default');
+        console.log('No user progress found');
         setProgress(null);
       }
     } catch (err) {
@@ -341,6 +367,36 @@ export const useUserProgressData = () => {
       setLoading(false);
     }
   };
+
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Initial fetch
+    fetchProgress();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('progress-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_progress',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Progress real-time update:', payload);
+          fetchProgress();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const updateProgress = async (updates: Partial<Omit<UserProgress, 'id' | 'user_id' | 'created_at'>>) => {
     if (!user?.id) {
@@ -392,15 +448,11 @@ export const useUserProgressData = () => {
     }
   };
 
-  useEffect(() => {
-    fetchProgress();
-  }, [user?.id]);
-
   return {
     progress,
     loading,
     error,
-    updateProgress,
+    updateProgress: () => {}, // Will be handled by service
     refetch: fetchProgress
   };
 };

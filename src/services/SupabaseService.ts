@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -56,13 +55,38 @@ export interface DueReview {
   days_overdue: number;
 }
 
+export interface UserProgress {
+  id: string;
+  user_id: string;
+  total_memorized: number;
+  last_visited_surah: number;
+  last_visited_ayah: number;
+  last_memorized_date: string;
+  updated_at: string;
+}
+
 class SupabaseService {
   // Memorized Ayahs
   async addMemorizedAyah(surah: number, ayah: number, pageNumber: number): Promise<MemorizedAyah | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      if (!user) throw new Error('No authenticated user');
 
+      // Check if already memorized
+      const { data: existing } = await supabase
+        .from('memorized_ayahs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('surah_number', surah)
+        .eq('ayah_number', ayah)
+        .single();
+
+      if (existing) {
+        console.log('Ayah already memorized');
+        return null;
+      }
+
+      // Add new memorized ayah
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .insert({
@@ -75,24 +99,38 @@ class SupabaseService {
         .single();
 
       if (error) throw error;
+
+      // Update user progress
+      const { data: progressData } = await supabase
+        .from('user_progress')
+        .select('total_memorized')
+        .eq('user_id', user.id)
+        .single();
+
+      const newTotal = (progressData?.total_memorized || 0) + 1;
       
-      return {
-        id: data.id,
-        user_id: data.user_id,
-        surah_number: data.surah_number,
-        ayah_number: data.ayah_number,
-        page_number: data.page_number,
-        memorized_at: data.memorized_at,
-        last_reviewed_at: data.last_reviewed_at,
-        ease_factor: data.ease_factor,
-        interval_days: data.interval_days,
-        next_review_date: data.next_review_date,
-        review_quality: data.review_quality as 'easy' | 'good' | 'hard' | undefined,
-        review_count: data.review_count,
-      };
+      await this.updateUserProgress({
+        total_memorized: newTotal,
+        last_visited_surah: surah,
+        last_visited_ayah: ayah,
+        last_memorized_date: new Date().toISOString().split('T')[0],
+      });
+
+      // Update daily session
+      await this.updateDailySession({
+        ayahs_memorized: 1
+      });
+
+      // Update streak
+      await supabase.rpc('update_user_streak', { user_uuid: user.id });
+
+      // Check page completion
+      await this.checkPageCompletion(pageNumber);
+
+      return data;
     } catch (error) {
       console.error('Error adding memorized ayah:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -246,28 +284,51 @@ class SupabaseService {
   }
 
   // Daily Sessions
-  async updateDailySession(updates: Partial<DailySession>): Promise<boolean> {
+  async updateDailySession(updates: Partial<DailySession>): Promise<void> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      if (!user) throw new Error('No authenticated user');
 
       const today = new Date().toISOString().split('T')[0];
-      
-      const { error } = await supabase
+
+      // Get existing session for today
+      const { data: existing } = await supabase
         .from('daily_sessions')
-        .upsert({
-          user_id: user.id,
-          session_date: today,
-          ...updates
-        })
-        .select()
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('session_date', today)
         .single();
 
-      if (error) throw error;
-      return true;
+      if (existing) {
+        // Update existing session
+        const { error } = await supabase
+          .from('daily_sessions')
+          .update({
+            ayahs_memorized: (existing.ayahs_memorized || 0) + (updates.ayahs_memorized || 0),
+            ayahs_reviewed: (existing.ayahs_reviewed || 0) + (updates.ayahs_reviewed || 0),
+            total_time_minutes: (existing.total_time_minutes || 0) + (updates.total_time_minutes || 0),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        // Create new session
+        const { error } = await supabase
+          .from('daily_sessions')
+          .insert({
+            user_id: user.id,
+            session_date: today,
+            ayahs_memorized: updates.ayahs_memorized || 0,
+            ayahs_reviewed: updates.ayahs_reviewed || 0,
+            total_time_minutes: updates.total_time_minutes || 0,
+          });
+
+        if (error) throw error;
+      }
     } catch (error) {
       console.error('Error updating daily session:', error);
-      return false;
+      throw error;
     }
   }
 
@@ -357,6 +418,51 @@ class SupabaseService {
         pagesCompleted: 0,
         dueReviews: 0
       };
+    }
+  }
+
+  async getUserProgress(): Promise<UserProgress | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching user progress:', error);
+      throw error;
+    }
+  }
+
+  async updateUserProgress(updates: Partial<UserProgress>): Promise<UserProgress | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      const { data, error } = await supabase
+        .from('user_progress')
+        .upsert({
+          user_id: user.id,
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating user progress:', error);
+      throw error;
     }
   }
 }
