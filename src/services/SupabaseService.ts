@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -59,9 +60,13 @@ class SupabaseService {
   // Memorized Ayahs
   async addMemorizedAyah(surah: number, ayah: number, pageNumber: number): Promise<MemorizedAyah | null> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .insert({
+          user_id: user.id,
           surah_number: surah,
           ayah_number: ayah,
           page_number: pageNumber,
@@ -70,7 +75,21 @@ class SupabaseService {
         .single();
 
       if (error) throw error;
-      return data;
+      
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        surah_number: data.surah_number,
+        ayah_number: data.ayah_number,
+        page_number: data.page_number,
+        memorized_at: data.memorized_at,
+        last_reviewed_at: data.last_reviewed_at,
+        ease_factor: data.ease_factor,
+        interval_days: data.interval_days,
+        next_review_date: data.next_review_date,
+        review_quality: data.review_quality as 'easy' | 'good' | 'hard' | undefined,
+        review_count: data.review_count,
+      };
     } catch (error) {
       console.error('Error adding memorized ayah:', error);
       return null;
@@ -85,7 +104,21 @@ class SupabaseService {
         .order('memorized_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      return (data || []).map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        surah_number: item.surah_number,
+        ayah_number: item.ayah_number,
+        page_number: item.page_number,
+        memorized_at: item.memorized_at,
+        last_reviewed_at: item.last_reviewed_at,
+        ease_factor: item.ease_factor,
+        interval_days: item.interval_days,
+        next_review_date: item.next_review_date,
+        review_quality: item.review_quality as 'easy' | 'good' | 'hard' | undefined,
+        review_count: item.review_count,
+      }));
     } catch (error) {
       console.error('Error fetching memorized ayahs:', error);
       return [];
@@ -133,7 +166,23 @@ class SupabaseService {
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
-      return data;
+      
+      if (data) {
+        return {
+          id: data.id,
+          user_id: data.user_id,
+          playback_count: data.playback_count,
+          dark_mode: data.dark_mode,
+          font_size: data.font_size as 'small' | 'medium' | 'large' | 'extra-large',
+          translation_on: data.translation_on,
+          transliteration_on: data.transliteration_on,
+          auto_play: data.auto_play,
+          notification_time: data.notification_time,
+          notifications_enabled: data.notifications_enabled,
+        };
+      }
+      
+      return null;
     } catch (error) {
       console.error('Error fetching user settings:', error);
       return null;
@@ -142,9 +191,15 @@ class SupabaseService {
 
   async updateUserSettings(settings: Partial<UserSettings>): Promise<boolean> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
       const { error } = await supabase
         .from('user_settings')
-        .upsert(settings)
+        .upsert({
+          user_id: user.id,
+          ...settings,
+        })
         .select()
         .single();
 
@@ -193,11 +248,15 @@ class SupabaseService {
   // Daily Sessions
   async updateDailySession(updates: Partial<DailySession>): Promise<boolean> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
       const today = new Date().toISOString().split('T')[0];
       
       const { error } = await supabase
         .from('daily_sessions')
         .upsert({
+          user_id: user.id,
           session_date: today,
           ...updates
         })

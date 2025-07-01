@@ -36,13 +36,13 @@ export interface MemorizedAyah {
   ease_factor: number;
   interval_days: number;
   next_review_date: string;
-  review_quality?: string;
+  review_quality?: 'easy' | 'good' | 'hard';
   review_count: number;
   created_at: string;
   updated_at: string;
 }
 
-// Updated to match actual database schema
+// Updated to match actual database schema and add missing properties
 export interface UserProgress {
   id: string;
   user_id: string;
@@ -57,6 +57,12 @@ export interface UserProgress {
   ayahs_due_review: number;
   created_at: string;
   updated_at: string;
+  // Add missing properties that components are expecting
+  streak: number;
+  last_ayah: number;
+  last_surah: number;
+  last_ayah_number: number;
+  last_updated: string;
 }
 
 // Hook to fetch surahs
@@ -126,16 +132,23 @@ export const useAyahs = (surahNumber?: number) => {
 
 // Hook to manage user's memorized ayahs
 export const useMemorizedAyahs = () => {
+  const { user } = useAuth();
   const [memorizedAyahs, setMemorizedAyahs] = useState<MemorizedAyah[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMemorizedAyahs = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .select('*')
+        .eq('user_id', user.id)
         .order('memorized_at', { ascending: false });
 
       if (error) throw error;
@@ -151,7 +164,7 @@ export const useMemorizedAyahs = () => {
         ease_factor: item.ease_factor,
         interval_days: item.interval_days,
         next_review_date: item.next_review_date,
-        review_quality: item.review_quality,
+        review_quality: item.review_quality as 'easy' | 'good' | 'hard' | undefined,
         review_count: item.review_count,
         created_at: item.created_at,
         updated_at: item.updated_at,
@@ -166,10 +179,15 @@ export const useMemorizedAyahs = () => {
   };
 
   const addMemorizedAyah = async (surahNumber: number, ayahNumber: number) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .insert({
+          user_id: user.id,
           surah_number: surahNumber,
           ayah_number: ayahNumber,
           page_number: 1, // This should be calculated based on actual page
@@ -191,7 +209,7 @@ export const useMemorizedAyahs = () => {
         ease_factor: data.ease_factor,
         interval_days: data.interval_days,
         next_review_date: data.next_review_date,
-        review_quality: data.review_quality,
+        review_quality: data.review_quality as 'easy' | 'good' | 'hard' | undefined,
         review_count: data.review_count,
         created_at: data.created_at,
         updated_at: data.updated_at,
@@ -204,7 +222,6 @@ export const useMemorizedAyahs = () => {
       await updateUserProgress(surahNumber, ayahNumber);
 
       // Update streak
-      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await supabase.rpc('update_user_streak', { user_uuid: user.id });
       }
@@ -217,10 +234,15 @@ export const useMemorizedAyahs = () => {
   };
 
   const updateUserProgress = async (surahNumber: number, ayahNumber: number) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const { error } = await supabase
         .from('user_progress')
         .upsert({
+          user_id: user.id,
           last_visited_surah: surahNumber,
           last_visited_ayah: ayahNumber,
           total_memorized: memorizedAyahs.length + 1,
@@ -236,7 +258,7 @@ export const useMemorizedAyahs = () => {
 
   useEffect(() => {
     fetchMemorizedAyahs();
-  }, []);
+  }, [user?.id]);
 
   return {
     memorizedAyahs,
@@ -271,7 +293,7 @@ export const useUserProgressData = () => {
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
-        // Map the data to match our interface
+        // Map the data to match our interface with additional computed properties
         const mappedData: UserProgress = {
           id: data.id,
           user_id: data.user_id,
@@ -286,6 +308,12 @@ export const useUserProgressData = () => {
           ayahs_due_review: data.ayahs_due_review,
           created_at: data.created_at,
           updated_at: data.updated_at,
+          // Map missing properties to existing ones for backwards compatibility
+          streak: data.current_streak,
+          last_ayah: data.last_visited_ayah,
+          last_surah: data.last_visited_surah,
+          last_ayah_number: data.last_visited_ayah,
+          last_updated: data.updated_at,
         };
         setProgress(mappedData);
       }
@@ -306,8 +334,8 @@ export const useUserProgressData = () => {
       const { data, error } = await supabase
         .from('user_progress')
         .upsert({
-          ...updates,
           user_id: user.id,
+          ...updates,
           updated_at: new Date().toISOString()
         })
         .select()
@@ -330,6 +358,12 @@ export const useUserProgressData = () => {
         ayahs_due_review: data.ayahs_due_review,
         created_at: data.created_at,
         updated_at: data.updated_at,
+        // Map missing properties to existing ones for backwards compatibility
+        streak: data.current_streak,
+        last_ayah: data.last_visited_ayah,
+        last_surah: data.last_visited_surah,
+        last_ayah_number: data.last_visited_ayah,
+        last_updated: data.updated_at,
       };
       setProgress(mappedData);
       return mappedData;
