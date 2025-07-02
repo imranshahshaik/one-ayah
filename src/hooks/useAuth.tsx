@@ -15,6 +15,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const initializeAuth = async () => {
       try {
         // Get the secure OAuth handler from global scope
@@ -23,36 +25,54 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (SecureOAuthHandler) {
           // Check for valid stored tokens
           const storedToken = SecureOAuthHandler.getValidStoredToken();
-          const refreshToken = (window as any).__supabase_refresh_token;
           
           if (storedToken?.access_token) {
             console.log('Setting session with stored tokens');
             
-            // Set session with stored tokens
-            const { data, error } = await supabase.auth.setSession({
-              access_token: storedToken.access_token,
-              refresh_token: refreshToken || ''
-            });
-            
-            if (error) {
-              console.error('Error setting session:', error);
+            try {
+              // Set session with stored tokens
+              const { data, error } = await supabase.auth.setSession({
+                access_token: storedToken.access_token,
+                refresh_token: '' // Don't use stored refresh token for security
+              });
+              
+              if (error) {
+                console.error('Error setting session:', error);
+                SecureOAuthHandler.clearStoredTokens();
+                
+                // Fallback to getting session normally
+                const { data: sessionData } = await supabase.auth.getSession();
+                if (mounted) {
+                  setUser(sessionData.session?.user ?? null);
+                }
+              } else {
+                if (mounted) {
+                  setUser(data.session?.user ?? null);
+                }
+              }
+            } catch (sessionError) {
+              console.error('Session error:', sessionError);
               SecureOAuthHandler.clearStoredTokens();
               
-              // Try to get session normally
+              // Fallback to getting session normally
               const { data: sessionData } = await supabase.auth.getSession();
-              setUser(sessionData.session?.user ?? null);
-            } else {
-              setUser(data.session?.user ?? null);
+              if (mounted) {
+                setUser(sessionData.session?.user ?? null);
+              }
             }
           } else {
             // No stored tokens, get session normally
             const { data: { session } } = await supabase.auth.getSession();
-            setUser(session?.user ?? null);
+            if (mounted) {
+              setUser(session?.user ?? null);
+            }
           }
         } else {
           // Fallback: get session normally
           const { data: { session } } = await supabase.auth.getSession();
-          setUser(session?.user ?? null);
+          if (mounted) {
+            setUser(session?.user ?? null);
+          }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -62,8 +82,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (SecureOAuthHandler) {
           SecureOAuthHandler.clearStoredTokens();
         }
+        
+        if (mounted) {
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -73,8 +99,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
-        setUser(session?.user ?? null);
-        setLoading(false);
+        
+        if (mounted) {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
         
         // Handle successful sign in
         if (event === 'SIGNED_IN' && session) {
@@ -98,7 +127,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             SecureOAuthHandler.storeTokenSecurely({
               access_token: session.access_token,
               token_type: 'bearer',
-              expires_in: '3600' // Default 1 hour
+              expires_in: '3600'
             });
           }
         }
@@ -115,7 +144,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

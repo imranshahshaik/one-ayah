@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import LandingPage from '../components/LandingPage';
 import AyahSelectionPage from '../components/AyahSelectionPage';
@@ -26,16 +25,24 @@ const Index = () => {
   const [selectedAyah, setSelectedAyah] = useState<SelectedAyah>({ surah: 1, ayah: 1 });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [dueReviewsCount, setDueReviewsCount] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const { user, loading: authLoading } = useAuth();
   const { progress, loading: progressLoading, refetch: refetchProgress } = useUserProgressData();
   const { memorizedAyahs, loading: memorizedLoading, refetch: refetchMemorized } = useMemorizedAyahs();
   const { toast } = useToast();
 
+  // Initialize app state after auth is ready
+  useEffect(() => {
+    if (!authLoading) {
+      setIsInitialized(true);
+    }
+  }, [authLoading]);
+
   // Load due reviews count for landing page
   useEffect(() => {
     const loadDueReviews = async () => {
-      if (user) {
+      if (user && isInitialized) {
         try {
           const reviews = await supabaseService.getDueReviews();
           setDueReviewsCount(reviews.length);
@@ -46,17 +53,17 @@ const Index = () => {
     };
 
     loadDueReviews();
-  }, [user, memorizedAyahs]); // Refresh when memorized ayahs change
+  }, [user, memorizedAyahs, isInitialized]); // Refresh when memorized ayahs change
 
   // Update selected ayah when progress loads
   useEffect(() => {
-    if (user && progress && progress.last_visited_surah && progress.last_visited_ayah) {
+    if (user && progress && progress.last_visited_surah && progress.last_visited_ayah && isInitialized) {
       setSelectedAyah({
         surah: progress.last_visited_surah,
         ayah: progress.last_visited_ayah,
       });
     }
-  }, [user, progress]);
+  }, [user, progress, isInitialized]);
 
   const navigateToPage = (page: Page) => {
     console.log('Navigating to page:', page);
@@ -279,8 +286,8 @@ const Index = () => {
     }
   };
 
-  // Only show loading when auth is loading or when user exists and progress is loading
-  const isLoading = authLoading || (user && progressLoading && memorizedLoading);
+  // Show loading only when auth is loading or when we haven't initialized yet
+  const isLoading = authLoading || !isInitialized;
   
   if (isLoading) {
     return (
@@ -298,7 +305,7 @@ const Index = () => {
       {/* User Menu */}
       {user && (
         <div className="absolute top-4 right-4 z-10">
-          <UserMenu onNavigate={navigateToPage} />
+          <UserMenu onNavigate={navigateToPage} dueReviewsCount={dueReviewsCount} />
         </div>
       )}
 

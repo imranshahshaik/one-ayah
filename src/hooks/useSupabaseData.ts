@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -135,6 +135,7 @@ export const useMemorizedAyahs = () => {
   const [memorizedAyahs, setMemorizedAyahs] = useState<MemorizedAyah[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<any>(null);
 
   const fetchMemorizedAyahs = async () => {
     if (!user?.id) {
@@ -186,14 +187,24 @@ export const useMemorizedAyahs = () => {
 
   // Set up real-time subscription
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setMemorizedAyahs([]);
+      setLoading(false);
+      return;
+    }
 
     // Initial fetch
     fetchMemorizedAyahs();
 
+    // Clean up existing channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     // Set up real-time subscription
-    const channel = supabase
-      .channel('memorized-ayahs-changes')
+    channelRef.current = supabase
+      .channel(`memorized-ayahs-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -211,7 +222,10 @@ export const useMemorizedAyahs = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [user?.id]);
 
@@ -310,6 +324,7 @@ export const useUserProgressData = () => {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<any>(null);
 
   const fetchProgress = async () => {
     if (!user?.id) {
@@ -370,14 +385,24 @@ export const useUserProgressData = () => {
 
   // Set up real-time subscription
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setProgress(null);
+      setLoading(false);
+      return;
+    }
 
     // Initial fetch
     fetchProgress();
 
+    // Clean up existing channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     // Set up real-time subscription
-    const channel = supabase
-      .channel('progress-changes')
+    channelRef.current = supabase
+      .channel(`progress-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -394,7 +419,10 @@ export const useUserProgressData = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [user?.id]);
 
