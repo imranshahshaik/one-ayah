@@ -278,7 +278,10 @@ const Index = () => {
     }
   };
 
-  if (authLoading || (user && progressLoading)) {
+  // Temporarily disable loading screen to debug
+  const isLoading = false; // authLoading || (user && progressLoading);
+  
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">
