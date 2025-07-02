@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -13,11 +13,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const initializingRef = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
     const initializeAuth = async () => {
+      // Prevent multiple initializations
+      if (initializingRef.current) return;
+      initializingRef.current = true;
+
       try {
         // Get the secure OAuth handler from global scope
         const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
@@ -42,11 +48,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 
                 // Fallback to getting session normally
                 const { data: sessionData } = await supabase.auth.getSession();
-                if (mounted) {
+                if (mountedRef.current) {
                   setUser(sessionData.session?.user ?? null);
                 }
               } else {
-                if (mounted) {
+                if (mountedRef.current) {
                   setUser(data.session?.user ?? null);
                 }
               }
@@ -56,21 +62,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               
               // Fallback to getting session normally
               const { data: sessionData } = await supabase.auth.getSession();
-              if (mounted) {
+              if (mountedRef.current) {
                 setUser(sessionData.session?.user ?? null);
               }
             }
           } else {
             // No stored tokens, get session normally
             const { data: { session } } = await supabase.auth.getSession();
-            if (mounted) {
+            if (mountedRef.current) {
               setUser(session?.user ?? null);
             }
           }
         } else {
           // Fallback: get session normally
           const { data: { session } } = await supabase.auth.getSession();
-          if (mounted) {
+          if (mountedRef.current) {
             setUser(session?.user ?? null);
           }
         }
@@ -83,13 +89,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           SecureOAuthHandler.clearStoredTokens();
         }
         
-        if (mounted) {
+        if (mountedRef.current) {
           setUser(null);
         }
       } finally {
-        if (mounted) {
+        if (mountedRef.current) {
           setLoading(false);
         }
+        initializingRef.current = false;
       }
     };
 
@@ -100,7 +107,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
         
-        if (mounted) {
+        if (mountedRef.current) {
           setUser(session?.user ?? null);
           setLoading(false);
         }
@@ -145,7 +152,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     );
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
   }, []);

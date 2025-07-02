@@ -136,9 +136,10 @@ export const useMemorizedAyahs = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
+  const mountedRef = useRef(true);
 
   const fetchMemorizedAyahs = async () => {
-    if (!user?.id) {
+    if (!user?.id || !mountedRef.current) {
       setMemorizedAyahs([]);
       setLoading(false);
       return;
@@ -157,6 +158,8 @@ export const useMemorizedAyahs = () => {
       if (error) throw error;
       
       console.log('Fetched memorized ayahs:', data?.length || 0);
+      
+      if (!mountedRef.current) return;
       
       // Map the data to match our interface
       const mappedData: MemorizedAyah[] = (data || []).map(item => ({
@@ -179,51 +182,38 @@ export const useMemorizedAyahs = () => {
       setMemorizedAyahs(mappedData);
     } catch (err) {
       console.error('Error fetching memorized ayahs:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch memorized ayahs');
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch memorized ayahs');
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
-  // Set up real-time subscription
+  // Set up subscription without real-time (to avoid WebSocket issues)
   useEffect(() => {
+    mountedRef.current = true;
+    
     if (!user?.id) {
       setMemorizedAyahs([]);
       setLoading(false);
       return;
     }
 
-    // Initial fetch
+    // Initial fetch only - no real-time subscription to avoid errors
     fetchMemorizedAyahs();
 
-    // Clean up existing channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    // Set up real-time subscription
-    channelRef.current = supabase
-      .channel(`memorized-ayahs-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'memorized_ayahs',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Real-time update received:', payload);
-          // Refetch data when changes occur
-          fetchMemorizedAyahs();
-        }
-      )
-      .subscribe();
-
     return () => {
+      mountedRef.current = false;
+      // Clean up any existing channels
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        try {
+          supabase.removeChannel(channelRef.current);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
         channelRef.current = null;
       }
     };
@@ -269,7 +259,9 @@ export const useMemorizedAyahs = () => {
       };
 
       // Update local state immediately
-      setMemorizedAyahs(prev => [mappedData, ...prev]);
+      if (mountedRef.current) {
+        setMemorizedAyahs(prev => [mappedData, ...prev]);
+      }
 
       // Update user progress
       await updateUserProgress(surahNumber, ayahNumber);
@@ -325,9 +317,10 @@ export const useUserProgressData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
+  const mountedRef = useRef(true);
 
   const fetchProgress = async () => {
-    if (!user?.id) {
+    if (!user?.id || !mountedRef.current) {
       setProgress(null);
       setLoading(false);
       return;
@@ -344,6 +337,8 @@ export const useUserProgressData = () => {
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
+      
+      if (!mountedRef.current) return;
       
       if (data) {
         console.log('User progress fetched:', data);
@@ -377,50 +372,38 @@ export const useUserProgressData = () => {
       }
     } catch (err) {
       console.error('Error fetching user progress:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch progress');
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch progress');
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
-  // Set up real-time subscription
+  // Set up subscription without real-time (to avoid WebSocket issues)
   useEffect(() => {
+    mountedRef.current = true;
+    
     if (!user?.id) {
       setProgress(null);
       setLoading(false);
       return;
     }
 
-    // Initial fetch
+    // Initial fetch only - no real-time subscription to avoid errors
     fetchProgress();
 
-    // Clean up existing channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    // Set up real-time subscription
-    channelRef.current = supabase
-      .channel(`progress-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_progress',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Progress real-time update:', payload);
-          fetchProgress();
-        }
-      )
-      .subscribe();
-
     return () => {
+      mountedRef.current = false;
+      // Clean up any existing channels
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        try {
+          supabase.removeChannel(channelRef.current);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
         channelRef.current = null;
       }
     };
@@ -445,6 +428,8 @@ export const useUserProgressData = () => {
         .single();
 
       if (error) throw error;
+      
+      if (!mountedRef.current) return null;
       
       // Map the returned data to match our interface
       const mappedData: UserProgress = {

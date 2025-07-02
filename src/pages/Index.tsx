@@ -25,45 +25,53 @@ const Index = () => {
   const [selectedAyah, setSelectedAyah] = useState<SelectedAyah>({ surah: 1, ayah: 1 });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [dueReviewsCount, setDueReviewsCount] = useState(0);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isAppReady, setIsAppReady] = useState(false);
   
   const { user, loading: authLoading } = useAuth();
   const { progress, loading: progressLoading, refetch: refetchProgress } = useUserProgressData();
   const { memorizedAyahs, loading: memorizedLoading, refetch: refetchMemorized } = useMemorizedAyahs();
   const { toast } = useToast();
 
-  // Initialize app state after auth is ready
+  // Initialize app when auth is ready
   useEffect(() => {
     if (!authLoading) {
-      setIsInitialized(true);
+      // Small delay to ensure everything is properly initialized
+      const timer = setTimeout(() => {
+        setIsAppReady(true);
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [authLoading]);
 
   // Load due reviews count for landing page
   useEffect(() => {
     const loadDueReviews = async () => {
-      if (user && isInitialized) {
+      if (user && isAppReady) {
         try {
           const reviews = await supabaseService.getDueReviews();
           setDueReviewsCount(reviews.length);
         } catch (error) {
           console.error('Error loading due reviews:', error);
+          // Don't show error to user for this non-critical feature
         }
+      } else {
+        setDueReviewsCount(0);
       }
     };
 
     loadDueReviews();
-  }, [user, memorizedAyahs, isInitialized]); // Refresh when memorized ayahs change
+  }, [user, memorizedAyahs, isAppReady]);
 
   // Update selected ayah when progress loads
   useEffect(() => {
-    if (user && progress && progress.last_visited_surah && progress.last_visited_ayah && isInitialized) {
+    if (user && progress && progress.last_visited_surah && progress.last_visited_ayah && isAppReady) {
       setSelectedAyah({
         surah: progress.last_visited_surah,
         ayah: progress.last_visited_ayah,
       });
     }
-  }, [user, progress, isInitialized]);
+  }, [user, progress, isAppReady]);
 
   const navigateToPage = (page: Page) => {
     console.log('Navigating to page:', page);
@@ -110,6 +118,7 @@ const Index = () => {
       }
     } catch (error) {
       console.error('Error updating last visited ayah:', error);
+      // Don't show error to user for this non-critical feature
     }
   };
 
@@ -286,8 +295,8 @@ const Index = () => {
     }
   };
 
-  // Show loading only when auth is loading or when we haven't initialized yet
-  const isLoading = authLoading || !isInitialized;
+  // Show loading only when auth is loading or app is not ready
+  const isLoading = authLoading || !isAppReady;
   
   if (isLoading) {
     return (
