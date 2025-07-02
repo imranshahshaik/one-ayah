@@ -59,9 +59,15 @@ export interface UserProgress {
   id: string;
   user_id: string;
   total_memorized: number;
+  current_streak: number;
+  best_streak: number;
+  last_memorized_date: string | null;
   last_visited_surah: number;
   last_visited_ayah: number;
-  last_memorized_date: string;
+  current_page: number;
+  pages_completed: number;
+  ayahs_due_review: number;
+  created_at: string;
   updated_at: string;
 }
 
@@ -127,7 +133,20 @@ class SupabaseService {
       // Check page completion
       await this.checkPageCompletion(pageNumber);
 
-      return data;
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        surah_number: data.surah_number,
+        ayah_number: data.ayah_number,
+        page_number: data.page_number,
+        memorized_at: data.memorized_at,
+        last_reviewed_at: data.last_reviewed_at,
+        ease_factor: data.ease_factor,
+        interval_days: data.interval_days,
+        next_review_date: data.next_review_date,
+        review_quality: data.review_quality as 'easy' | 'good' | 'hard' | undefined,
+        review_count: data.review_count,
+      };
     } catch (error) {
       console.error('Error adding memorized ayah:', error);
       throw error;
