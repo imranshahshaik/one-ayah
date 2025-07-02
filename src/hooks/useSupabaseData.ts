@@ -138,8 +138,8 @@ export const useMemorizedAyahs = () => {
 
   const fetchMemorizedAyahs = async () => {
     if (!user?.id) {
-      setLoading(false);
       setMemorizedAyahs([]);
+      setLoading(false);
       return;
     }
 
@@ -313,8 +313,8 @@ export const useUserProgressData = () => {
 
   const fetchProgress = async () => {
     if (!user?.id) {
-      setLoading(false);
       setProgress(null);
+      setLoading(false);
       return;
     }
 

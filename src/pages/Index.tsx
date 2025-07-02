@@ -278,8 +278,8 @@ const Index = () => {
     }
   };
 
-  // Temporarily disable loading screen to debug
-  const isLoading = false; // authLoading || (user && progressLoading);
+  // Only show loading when auth is loading or when user exists and progress is loading
+  const isLoading = authLoading || (user && progressLoading && memorizedLoading);
   
   if (isLoading) {
     return (
