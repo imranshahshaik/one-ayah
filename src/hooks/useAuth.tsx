@@ -72,8 +72,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.email);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Handle successful sign in
+        if (event === 'SIGNED_IN' && session) {
+          console.log('User signed in successfully');
+          const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
+          if (SecureOAuthHandler) {
+            // Store new access token
+            SecureOAuthHandler.storeTokenSecurely({
+              access_token: session.access_token,
+              token_type: 'bearer',
+              expires_in: '3600'
+            });
+          }
+        }
         
         // Handle token refresh
         if (event === 'TOKEN_REFRESHED' && session) {
