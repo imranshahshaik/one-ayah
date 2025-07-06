@@ -201,12 +201,34 @@
   }
 }
 
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes pulse-gentle {
   0%, 100% {
     opacity: 1;
   }
   50% {
     opacity: 0.8;
+  }
+}
+
+@keyframes confetti {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) rotate(720deg);
+    opacity: 0;
   }
 }
 
@@ -219,8 +241,16 @@
   animation: slideInRight 0.4s ease-out;
 }
 
+.animate-slide-in-down {
+  animation: slideInDown 0.4s ease-out;
+}
+
 .animate-pulse-gentle {
   animation: pulse-gentle 2s ease-in-out infinite;
+}
+
+.animate-confetti {
+  animation: confetti 3s ease-out forwards;
 }
 
 /* Focus styles for accessibility */
@@ -245,8 +275,69 @@
   .transition-smooth,
   .animate-fade-in-up,
   .animate-slide-in-right,
-  .animate-pulse-gentle {
+  .animate-slide-in-down,
+  .animate-pulse-gentle,
+  .animate-confetti {
     animation: none;
     transition: none;
   }
+}
+
+/* Mobile-first responsive design improvements */
+@media (max-width: 640px) {
+  .font-arabic {
+    font-size: 1.5rem;
+    line-height: 2.5;
+  }
+  
+  /* Larger touch targets for mobile */
+  button, .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better spacing on mobile */
+  .mobile-spacing {
+    padding: 1rem;
+  }
+}
+
+/* Improved button styles */
+.btn-primary {
+  @apply bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105;
+}
+
+.btn-secondary {
+  @apply bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 font-medium py-2 px-4 rounded-lg transition-all duration-200;
+}
+
+/* Card improvements */
+.card-elevated {
+  @apply bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl border border-slate-200/50 dark:border-slate-700/50;
+}
+
+/* Success states */
+.success-glow {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+/* Loading states */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.dark .loading-shimmer {
+  background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  background-size: 200% 100%;
 }

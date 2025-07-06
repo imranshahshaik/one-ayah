@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -7,13 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import BottomNavbar from './BottomNavbar';
-import { ArrowLeft, ArrowRight, Loader2, AlertCircle, CheckCircle, Award } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, AlertCircle, CheckCircle, Award, Undo2 } from 'lucide-react';
 import { useAyahData } from '../hooks/useAyahData';
 import { surahs } from '../data/surahs';
 import { getPageForAyah } from '@/data/mushafPages';
 import { useToast } from '@/hooks/use-toast';
 import { useMemorizedAyahs } from '@/hooks/useSupabaseData';
 import EnhancedStrictAudioPlayer from './enhanced/EnhancedStrictAudioPlayer';
+import VoiceRecorder from './enhanced/VoiceRecorder';
 
 interface MemorizationPageProps {
   selectedAyah: { surah: number; ayah: number };
@@ -27,6 +27,7 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
   const [showCelebration, setShowCelebration] = useState(false);
   const [isMemorized, setIsMemorized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   
   const { data: ayahData, isLoading, error } = useAyahData(selectedAyah.surah, selectedAyah.ayah);
   const { memorizedAyahs } = useMemorizedAyahs();
@@ -96,33 +97,49 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
   const handleMarkMemorized = async (checked: boolean) => {
     if (isProcessing) return;
     
-    setIsProcessing(true);
-    console.log('Marking ayah as memorized:', { 
-      surah: selectedAyah.surah, 
-      ayah: selectedAyah.ayah, 
-      checked 
-    });
+    if (checked && !isMemorized) {
+      setIsProcessing(true);
+      console.log('Marking ayah as memorized:', { 
+        surah: selectedAyah.surah, 
+        ayah: selectedAyah.ayah, 
+        checked 
+      });
 
-    try {
-      if (checked && !isMemorized) {
+      try {
         await onMarkMemorized(selectedAyah.surah, selectedAyah.ayah);
         setIsMemorized(true);
-        setShowCelebration(true);
         
+        // Show success toast that auto-disappears
+        setShowSuccessToast(true);
+        setTimeout(() => {
+          setShowSuccessToast(false);
+        }, 1000);
+        
+        // Show celebration animation
+        setShowCelebration(true);
         setTimeout(() => {
           setShowCelebration(false);
         }, 3000);
+        
+      } catch (error) {
+        console.error('Error marking ayah as memorized:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save progress. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsProcessing(false);
       }
-    } catch (error) {
-      console.error('Error marking ayah as memorized:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to save progress. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
     }
+  };
+
+  const handleUnmarkMemorized = () => {
+    // For now, just show a message since unmarking requires more complex logic
+    toast({
+      title: 'Already Memorized',
+      description: 'This ayah is already in your collection. Use the review system to practice it.',
+    });
   };
 
   const handlePlaybackComplete = (completedRepeats: number) => {
@@ -237,6 +254,16 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-in-down">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2">
+            <CheckCircle className="h-5 w-5" />
+            <span className="font-medium">Ayah memorized! 🎉</span>
+          </div>
+        </div>
+      )}
+
       {/* Celebration Overlay */}
       {showCelebration && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 pointer-events-none">
@@ -338,6 +365,13 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
             )}
           </Card>
 
+          {/* Voice Recorder */}
+          <VoiceRecorder
+            surah={selectedAyah.surah}
+            ayah={selectedAyah.ayah}
+            originalAudioUrl={ayahData?.audio}
+          />
+
           {/* Mark as Memorized */}
           <Card className="p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
             <div className="flex items-center justify-between">
@@ -349,13 +383,25 @@ const MemorizationPage = ({ selectedAyah, onMarkMemorized, onNavigate, onAyahCha
                   disabled={isProcessing || isMemorized}
                 />
                 <Label htmlFor="memorized" className="text-base font-medium text-slate-700 dark:text-slate-300">
-                  Mark as Memorized
+                  {isMemorized ? 'Memorized ✓' : 'Mark as Memorized'}
                 </Label>
               </div>
               
-              {isMemorized && (
-                <Award className="h-5 w-5 text-emerald-600" />
-              )}
+              <div className="flex items-center space-x-2">
+                {isMemorized && (
+                  <>
+                    <Award className="h-5 w-5 text-emerald-600" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleUnmarkMemorized}
+                      className="text-slate-500 hover:text-slate-700"
+                    >
+                      <Undo2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </Card>
 

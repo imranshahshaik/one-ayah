@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabaseService } from '@/services/SupabaseService';
-import { User, LogOut, Trophy, Calendar, Star, BookOpen, Settings, Bell } from 'lucide-react';
+import { User, LogOut, Trophy, Calendar, Star, BookOpen, Settings, Bell, BarChart3, Target } from 'lucide-react';
 
 interface UserMenuProps {
   onNavigate: (page: string) => void;
@@ -55,7 +55,7 @@ const UserMenu = ({ onNavigate, dueReviewsCount = 0 }: UserMenuProps) => {
         variant="ghost"
         size="sm"
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="flex items-center space-x-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200"
+        className="flex items-center space-x-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl"
       >
         <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center">
           <User className="w-4 h-4 text-white" />
@@ -183,6 +183,15 @@ const UserMenu = ({ onNavigate, dueReviewsCount = 0 }: UserMenuProps) => {
                 >
                   <BookOpen className="w-4 h-4 mr-3" />
                   Page Progress
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => handleNavigate('habit')}
+                >
+                  <Target className="w-4 h-4 mr-3" />
+                  Habit Tracker
                 </Button>
                 
                 <Button

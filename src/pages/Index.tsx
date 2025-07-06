@@ -6,14 +6,18 @@ import ProgressPage from '../components/ProgressPage';
 import SettingsPage from '../components/SettingsPage';
 import AuthModal from '../components/AuthModal';
 import UserMenu from '../components/UserMenu';
-import ReviewScheduler from '../components/ReviewScheduler';
-import CalendarTracker from '../components/CalendarTracker';
+import ReviewQueue from '../components/enhanced/ReviewQueue';
+import InteractiveCalendar from '../components/enhanced/InteractiveCalendar';
+import HabitTracker from '../components/enhanced/HabitTracker';
+import TodaysAyah from '../components/enhanced/TodaysAyah';
+import PageProgress from '../components/enhanced/PageProgress';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProgressData, useMemorizedAyahs } from '../hooks/useSupabaseData';
 import { supabaseService } from '../services/SupabaseService';
+import { notificationService } from '../services/NotificationService';
 import { useToast } from '../hooks/use-toast';
 
-type Page = 'landing' | 'selection' | 'memorization' | 'progress' | 'settings' | 'review' | 'calendar';
+type Page = 'landing' | 'selection' | 'memorization' | 'progress' | 'settings' | 'review' | 'calendar' | 'habit' | 'pages';
 
 interface SelectedAyah {
   surah: number;
@@ -26,6 +30,7 @@ const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [dueReviewsCount, setDueReviewsCount] = useState(0);
   const [isAppReady, setIsAppReady] = useState(false);
+  const [showReviewPrompt, setShowReviewPrompt] = useState(false);
   
   const { user, loading: authLoading } = useAuth();
   const { progress, loading: progressLoading, refetch: refetchProgress } = useUserProgressData();
@@ -35,32 +40,25 @@ const Index = () => {
   // Initialize app when auth is ready
   useEffect(() => {
     if (!authLoading) {
-      // Small delay to ensure everything is properly initialized
       const timer = setTimeout(() => {
         setIsAppReady(true);
+        if (user) {
+          checkForDueReviews();
+          setupNotifications();
+        }
       }, 100);
       
       return () => clearTimeout(timer);
     }
-  }, [authLoading]);
+  }, [authLoading, user]);
 
-  // Load due reviews count for landing page
+  // Load due reviews count and check for immediate review prompt
   useEffect(() => {
-    const loadDueReviews = async () => {
-      if (user && isAppReady) {
-        try {
-          const reviews = await supabaseService.getDueReviews();
-          setDueReviewsCount(reviews.length);
-        } catch (error) {
-          console.error('Error loading due reviews:', error);
-          // Don't show error to user for this non-critical feature
-        }
-      } else {
-        setDueReviewsCount(0);
-      }
-    };
-
-    loadDueReviews();
+    if (user && isAppReady) {
+      loadDueReviews();
+    } else {
+      setDueReviewsCount(0);
+    }
   }, [user, memorizedAyahs, isAppReady]);
 
   // Update selected ayah when progress loads
@@ -73,16 +71,49 @@ const Index = () => {
     }
   }, [user, progress, isAppReady]);
 
+  const setupNotifications = async () => {
+    try {
+      const settings = notificationService.loadSettings();
+      await notificationService.scheduleDaily(settings);
+    } catch (error) {
+      console.error('Error setting up notifications:', error);
+    }
+  };
+
+  const checkForDueReviews = async () => {
+    if (!user) return;
+    
+    try {
+      const reviews = await supabaseService.getDueReviews();
+      if (reviews.length > 0 && currentPage === 'landing') {
+        setShowReviewPrompt(true);
+        setTimeout(() => setShowReviewPrompt(false), 10000); // Auto-hide after 10s
+      }
+    } catch (error) {
+      console.error('Error checking for due reviews:', error);
+    }
+  };
+
+  const loadDueReviews = async () => {
+    try {
+      const reviews = await supabaseService.getDueReviews();
+      setDueReviewsCount(reviews.length);
+    } catch (error) {
+      console.error('Error loading due reviews:', error);
+    }
+  };
+
   const navigateToPage = (page: Page) => {
     console.log('Navigating to page:', page);
     
     // Handle authentication check for protected pages
-    if (!user && (page === 'progress' || page === 'review' || page === 'calendar')) {
+    if (!user && (page === 'progress' || page === 'review' || page === 'calendar' || page === 'habit' || page === 'pages')) {
       setShowAuthModal(true);
       return;
     }
     
     setCurrentPage(page);
+    setShowReviewPrompt(false); // Hide review prompt when navigating
   };
 
   const handleAyahSelection = (surah: number, ayah: number) => {
@@ -113,12 +144,10 @@ const Index = () => {
           last_visited_surah: surah,
           last_visited_ayah: ayah,
         });
-        // Refresh progress data
         refetchProgress();
       }
     } catch (error) {
       console.error('Error updating last visited ayah:', error);
-      // Don't show error to user for this non-critical feature
     }
   };
 
@@ -135,16 +164,15 @@ const Index = () => {
     try {
       console.log('Marking ayah as memorized:', { surah, ayah });
       
-      // Get page number for the ayah
       const pageNumber = 1; // This should be calculated properly
-      
       const result = await supabaseService.addMemorizedAyah(surah, ayah, pageNumber);
       
       if (result) {
         // Refresh all data after memorizing
         await Promise.all([
           refetchProgress(),
-          refetchMemorized()
+          refetchMemorized(),
+          loadDueReviews()
         ]);
         
         // Show success with streak info
@@ -153,10 +181,13 @@ const Index = () => {
           ? ` 🔥 ${updatedProgress.current_streak} day streak!` 
           : '';
           
-        toast({
-          title: '🎉 Ayah Memorized!',
-          description: `Surah ${surah}, Ayah ${ayah} has been added to your collection.${streakMessage}`,
-        });
+        // Show confetti notification
+        setTimeout(() => {
+          notificationService.showInstant(
+            'OneAyah - Achievement!',
+            `You memorized Surah ${surah}, Ayah ${ayah}!`
+          );
+        }, 1000);
       } else {
         throw new Error('Failed to add memorized ayah');
       }
@@ -176,7 +207,6 @@ const Index = () => {
     if (user) {
       // Check if there are due reviews first
       if (dueReviewsCount > 0) {
-        // Suggest reviewing first but allow continuing
         toast({
           title: '📚 Reviews Available',
           description: `You have ${dueReviewsCount} ayah${dueReviewsCount === 1 ? '' : 's'} due for review. Consider reviewing first!`,
@@ -203,14 +233,15 @@ const Index = () => {
     // Refresh data after completing reviews
     Promise.all([
       refetchProgress(),
-      refetchMemorized()
+      refetchMemorized(),
+      loadDueReviews()
     ]).then(() => {
       toast({
         title: '🎯 Reviews Complete!',
         description: 'Great job! Your memory is getting stronger.',
       });
       
-      // Navigate back to landing or selection
+      // Navigate back to landing
       navigateToPage('landing');
     });
   };
@@ -219,12 +250,22 @@ const Index = () => {
     switch (currentPage) {
       case 'landing':
         return (
-          <LandingPage 
-            onStartMemorizing={handleStartMemorizing} 
-            onContinue={handleContinueFromLanding}
-            dueReviewsCount={dueReviewsCount}
-            onNavigate={navigateToPage}
-          />
+          <div className="relative">
+            <LandingPage 
+              onStartMemorizing={handleStartMemorizing} 
+              onContinue={handleContinueFromLanding}
+              dueReviewsCount={dueReviewsCount}
+              onNavigate={navigateToPage}
+            />
+            
+            {/* Review Prompt Overlay */}
+            <ReviewQueue
+              showPrompt={showReviewPrompt}
+              onDismissPrompt={() => setShowReviewPrompt(false)}
+              onComplete={handleReviewComplete}
+              onNavigate={navigateToPage}
+            />
+          </div>
         );
       case 'selection':
         return (
@@ -254,10 +295,26 @@ const Index = () => {
         );
       case 'review':
         return (
-          <ReviewScheduler 
-            onComplete={handleReviewComplete}
-            onNavigate={navigateToPage}
-          />
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800 p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <button 
+                  onClick={() => navigateToPage('landing')}
+                  className="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  ← Back
+                </button>
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+                  Review Schedule
+                </h1>
+                <div></div>
+              </div>
+              <ReviewQueue 
+                onComplete={handleReviewComplete}
+                onNavigate={navigateToPage}
+              />
+            </div>
+          </div>
         );
       case 'calendar':
         return (
@@ -275,9 +332,33 @@ const Index = () => {
                 </h1>
                 <div></div>
               </div>
-              <CalendarTracker />
+              <InteractiveCalendar />
             </div>
           </div>
+        );
+      case 'habit':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800 p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <button 
+                  onClick={() => navigateToPage('landing')}
+                  className="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  ← Back
+                </button>
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+                  Habit Tracker
+                </h1>
+                <div></div>
+              </div>
+              <HabitTracker onNavigate={navigateToPage} />
+            </div>
+          </div>
+        );
+      case 'pages':
+        return (
+          <PageProgress onBack={() => navigateToPage('landing')} />
         );
       case 'settings':
         return <SettingsPage onNavigate={navigateToPage} />;
