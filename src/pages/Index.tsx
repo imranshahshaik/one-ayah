@@ -197,8 +197,6 @@ const Index = () => {
   const handleAuthSuccess = () => {
     console.log('Auth success callback triggered');
     setShowAuthModal(false);
-    // After successful auth, navigate to landing page to show proper state
-    navigateToPage('landing');
   };
 
   const handleReviewComplete = () => {

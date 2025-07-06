@@ -30,11 +30,6 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
         provider: 'google',
         options: {
           redirectTo: redirectTo,
-          // Ensure we get the tokens in the hash for secure handling
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
         },
       });
 
@@ -44,9 +39,6 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }: AuthModalProps) => {
           description: error.message,
           variant: 'destructive',
         });
-      } else {
-        // The redirect will happen, and tokens will be handled securely by main.tsx
-        onAuthSuccess();
       }
     } catch (error) {
       console.error('Google sign in error:', error);

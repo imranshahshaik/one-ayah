@@ -1,9 +1,10 @@
-import { useState, useEffect, createContext, useContext, useRef } from 'react';
-import { User } from '@supabase/supabase-js';
+import { useState, useEffect, createContext, useContext } from 'react';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -12,167 +13,36 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const mountedRef = useRef(true);
-  const initializingRef = useRef(false);
 
   useEffect(() => {
-    mountedRef.current = true;
-
-    const initializeAuth = async () => {
-      // Prevent multiple initializations
-      if (initializingRef.current) return;
-      initializingRef.current = true;
-
-      try {
-        // Get the secure OAuth handler from global scope
-        const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
-        
-        if (SecureOAuthHandler) {
-          // Check for valid stored tokens
-          const storedToken = SecureOAuthHandler.getValidStoredToken();
-          
-          if (storedToken?.access_token) {
-            console.log('Setting session with stored tokens');
-            
-            try {
-              // Set session with stored tokens
-              const { data, error } = await supabase.auth.setSession({
-                access_token: storedToken.access_token,
-                refresh_token: '' // Don't use stored refresh token for security
-              });
-              
-              if (error) {
-                console.error('Error setting session:', error);
-                SecureOAuthHandler.clearStoredTokens();
-                
-                // Fallback to getting session normally
-                const { data: sessionData } = await supabase.auth.getSession();
-                if (mountedRef.current) {
-                  setUser(sessionData.session?.user ?? null);
-                }
-              } else {
-                if (mountedRef.current) {
-                  setUser(data.session?.user ?? null);
-                }
-              }
-            } catch (sessionError) {
-              console.error('Session error:', sessionError);
-              SecureOAuthHandler.clearStoredTokens();
-              
-              // Fallback to getting session normally
-              const { data: sessionData } = await supabase.auth.getSession();
-              if (mountedRef.current) {
-                setUser(sessionData.session?.user ?? null);
-              }
-            }
-          } else {
-            // No stored tokens, get session normally
-            const { data: { session } } = await supabase.auth.getSession();
-            if (mountedRef.current) {
-              setUser(session?.user ?? null);
-            }
-          }
-        } else {
-          // Fallback: get session normally
-          const { data: { session } } = await supabase.auth.getSession();
-          if (mountedRef.current) {
-            setUser(session?.user ?? null);
-          }
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        
-        // Clear any stored tokens on error
-        const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
-        if (SecureOAuthHandler) {
-          SecureOAuthHandler.clearStoredTokens();
-        }
-        
-        if (mountedRef.current) {
-          setUser(null);
-        }
-      } finally {
-        if (mountedRef.current) {
-          setLoading(false);
-        }
-        initializingRef.current = false;
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth changes
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
-        
-        if (mountedRef.current) {
-          setUser(session?.user ?? null);
-          setLoading(false);
-        }
-        
-        // Handle successful sign in
-        if (event === 'SIGNED_IN' && session) {
-          console.log('User signed in successfully');
-          const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
-          if (SecureOAuthHandler) {
-            // Store new access token
-            SecureOAuthHandler.storeTokenSecurely({
-              access_token: session.access_token,
-              token_type: 'bearer',
-              expires_in: '3600'
-            });
-          }
-        }
-        
-        // Handle token refresh
-        if (event === 'TOKEN_REFRESHED' && session) {
-          const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
-          if (SecureOAuthHandler) {
-            // Store new access token
-            SecureOAuthHandler.storeTokenSecurely({
-              access_token: session.access_token,
-              token_type: 'bearer',
-              expires_in: '3600'
-            });
-          }
-        }
-        
-        // Clear stored tokens on sign out
-        if (event === 'SIGNED_OUT') {
-          const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
-          if (SecureOAuthHandler) {
-            SecureOAuthHandler.clearStoredTokens();
-          }
-          // Clear any memory tokens
-          delete (window as any).__supabase_refresh_token;
-        }
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
     );
 
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
     return () => {
-      mountedRef.current = false;
       subscription.unsubscribe();
     };
   }, []);
 
   const signOut = async () => {
     try {
-      // Clear stored tokens before signing out
-      const SecureOAuthHandler = (window as any).__SecureOAuthHandler;
-      if (SecureOAuthHandler) {
-        SecureOAuthHandler.clearStoredTokens();
-      }
-      
-      // Clear memory tokens
-      delete (window as any).__supabase_refresh_token;
-      
-      // Sign out from Supabase (invalidates server-side session)
       await supabase.auth.signOut();
-      
-      // Redirect to login/home page
-      window.location.href = '/';
+      // The auth state change listener will handle state updates
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -180,6 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const value = {
     user,
+    session,
     loading,
     signOut,
   };
