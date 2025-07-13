@@ -6,19 +6,27 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../providers/AuthProvider';
+import { useAuth } from '../hooks/useAuth';
+import { useUserProgress, useMemorizedAyahs } from '../hooks/useSupabaseData';
+import { supabaseService } from '../services/SupabaseService';
 
-export default function MemorizationScreen() {
+export default function MemorizationScreen({ navigation }) {
   const { user, supabase } = useAuth();
+  const { progress, refetch: refetchProgress } = useUserProgress();
+  const { memorizedAyahs, addMemorizedAyah, refetch: refetchMemorized } = useMemorizedAyahs();
+  
   const [currentAyah, setCurrentAyah] = useState(null);
   const [sound, setSound] = useState();
   const [isPlaying, setIsPlaying] = useState(false);
   const [repeatCount, setRepeatCount] = useState(5);
   const [currentRepeat, setCurrentRepeat] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isMemorized, setIsMemorized] = useState(false);
+  const [showTransliteration, setShowTransliteration] = useState(true);
 
   useEffect(() => {
     loadCurrentAyah();
@@ -27,33 +35,54 @@ export default function MemorizationScreen() {
           sound.unloadAsync();
         }
       : undefined;
-  }, [sound]);
+  }, [sound, progress]);
+
+  useEffect(() => {
+    // Check if current ayah is memorized
+    if (currentAyah && memorizedAyahs.length > 0) {
+      const isAlreadyMemorized = memorizedAyahs.some(
+        ayah => ayah.surah_number === currentAyah.surah_number && 
+                ayah.ayah_number === currentAyah.ayah_number
+      );
+      setIsMemorized(isAlreadyMemorized);
+    }
+  }, [currentAyah, memorizedAyahs]);
 
   const loadCurrentAyah = async () => {
     try {
-      // Get user's current progress
-      const { data: progress } = await supabase
-        .from('user_progress')
-        .select('last_visited_surah, last_visited_ayah')
-        .eq('user_id', user.id)
-        .single();
-
+      setLoading(true);
+      
+      // Get user's current progress or default to Al-Fatihah 1:1
       const surahNumber = progress?.last_visited_surah || 1;
       const ayahNumber = progress?.last_visited_ayah || 1;
 
       // Get the ayah data
-      const { data: ayah } = await supabase
+      const { data: ayah, error } = await supabase
         .from('ayahs')
         .select('*')
         .eq('surah_number', surahNumber)
         .eq('ayah_number', ayahNumber)
         .single();
 
-      if (ayah) {
+      if (error) {
+        console.error('Error fetching ayah:', error);
+        // Fallback to Al-Fatihah 1:1
+        const { data: fallbackAyah } = await supabase
+          .from('ayahs')
+          .select('*')
+          .eq('surah_number', 1)
+          .eq('ayah_number', 1)
+          .single();
+        
+        if (fallbackAyah) {
+          setCurrentAyah(fallbackAyah);
+        }
+      } else if (ayah) {
         setCurrentAyah(ayah);
       }
     } catch (error) {
       console.error('Error loading ayah:', error);
+      Alert.alert('Error', 'Failed to load ayah. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -93,7 +122,7 @@ export default function MemorizationScreen() {
       });
     } catch (error) {
       console.error('Error playing audio:', error);
-      Alert.alert('Audio Error', 'Could not play audio');
+      Alert.alert('Audio Error', 'Could not play audio. Please check your internet connection.');
     }
   };
 
@@ -106,33 +135,34 @@ export default function MemorizationScreen() {
   };
 
   const markAsMemorized = async () => {
-    if (!currentAyah || !user) return;
+    if (!currentAyah || !user || isMemorized) return;
 
     try {
-      // Insert into memorized_ayahs
-      await supabase.from('memorized_ayahs').insert({
-        user_id: user.id,
-        surah_number: currentAyah.surah_number,
-        ayah_number: currentAyah.ayah_number,
-        page_number: currentAyah.page_number,
+      await addMemorizedAyah(currentAyah.surah_number, currentAyah.ayah_number);
+      
+      // Update daily session
+      await supabaseService.updateDailySession({
+        ayahs_memorized: 1
       });
 
-      // Update user progress
-      await supabase
-        .from('user_progress')
-        .update({
-          total_memorized: supabase.raw('total_memorized + 1'),
-          last_memorized_date: new Date().toISOString().split('T')[0],
-        })
-        .eq('user_id', user.id);
-
-      Alert.alert('Success!', 'Ayah marked as memorized!');
+      setIsMemorized(true);
       
-      // Move to next ayah
-      loadNextAyah();
+      Alert.alert(
+        '🎉 Ayah Memorized!', 
+        `Surah ${currentAyah.surah_number}, Ayah ${currentAyah.ayah_number} has been added to your collection.`,
+        [
+          { text: 'Continue', onPress: loadNextAyah },
+          { text: 'Stay Here', style: 'cancel' }
+        ]
+      );
+      
+      // Refresh data
+      refetchProgress();
+      refetchMemorized();
+      
     } catch (error) {
       console.error('Error marking as memorized:', error);
-      Alert.alert('Error', 'Could not mark as memorized');
+      Alert.alert('Error', 'Could not mark as memorized. Please try again.');
     }
   };
 
@@ -151,13 +181,10 @@ export default function MemorizationScreen() {
       if (nextAyah) {
         setCurrentAyah(nextAyah);
         // Update user progress
-        await supabase
-          .from('user_progress')
-          .update({
-            last_visited_surah: nextAyah.surah_number,
-            last_visited_ayah: nextAyah.ayah_number,
-          })
-          .eq('user_id', user.id);
+        await supabaseService.updateUserProgress({
+          last_visited_surah: nextAyah.surah_number,
+          last_visited_ayah: nextAyah.ayah_number,
+        });
       } else {
         // Move to next surah
         const { data: firstAyahNextSurah } = await supabase
@@ -169,24 +196,78 @@ export default function MemorizationScreen() {
 
         if (firstAyahNextSurah) {
           setCurrentAyah(firstAyahNextSurah);
-          await supabase
-            .from('user_progress')
-            .update({
-              last_visited_surah: firstAyahNextSurah.surah_number,
-              last_visited_ayah: 1,
-            })
-            .eq('user_id', user.id);
+          await supabaseService.updateUserProgress({
+            last_visited_surah: firstAyahNextSurah.surah_number,
+            last_visited_ayah: 1,
+          });
         }
       }
+      
+      setIsMemorized(false);
+      refetchProgress();
     } catch (error) {
       console.error('Error loading next ayah:', error);
+    }
+  };
+
+  const loadPreviousAyah = async () => {
+    if (!currentAyah) return;
+
+    try {
+      if (currentAyah.ayah_number > 1) {
+        // Previous ayah in same surah
+        const { data: prevAyah } = await supabase
+          .from('ayahs')
+          .select('*')
+          .eq('surah_number', currentAyah.surah_number)
+          .eq('ayah_number', currentAyah.ayah_number - 1)
+          .single();
+
+        if (prevAyah) {
+          setCurrentAyah(prevAyah);
+          await supabaseService.updateUserProgress({
+            last_visited_surah: prevAyah.surah_number,
+            last_visited_ayah: prevAyah.ayah_number,
+          });
+        }
+      } else if (currentAyah.surah_number > 1) {
+        // Last ayah of previous surah
+        const { data: prevSurah } = await supabase
+          .from('surahs')
+          .select('number_of_ayahs')
+          .eq('number', currentAyah.surah_number - 1)
+          .single();
+
+        if (prevSurah) {
+          const { data: lastAyahPrevSurah } = await supabase
+            .from('ayahs')
+            .select('*')
+            .eq('surah_number', currentAyah.surah_number - 1)
+            .eq('ayah_number', prevSurah.number_of_ayahs)
+            .single();
+
+          if (lastAyahPrevSurah) {
+            setCurrentAyah(lastAyahPrevSurah);
+            await supabaseService.updateUserProgress({
+              last_visited_surah: lastAyahPrevSurah.surah_number,
+              last_visited_ayah: lastAyahPrevSurah.ayah_number,
+            });
+          }
+        }
+      }
+      
+      setIsMemorized(false);
+      refetchProgress();
+    } catch (error) {
+      console.error('Error loading previous ayah:', error);
     }
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ActivityIndicator size="large" color="#22c55e" />
+        <Text style={styles.loadingText}>Loading ayah...</Text>
       </View>
     );
   }
@@ -194,7 +275,18 @@ export default function MemorizationScreen() {
   if (!currentAyah) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>No ayah found</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Memorization</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>No ayah found</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadCurrentAyah}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -202,77 +294,120 @@ export default function MemorizationScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.surahInfo}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
           Surah {currentAyah.surah_number} - Ayah {currentAyah.ayah_number}
         </Text>
       </View>
 
-      <View style={styles.ayahContainer}>
-        <Text style={styles.arabicText}>{currentAyah.text_arabic}</Text>
-        
-        {currentAyah.text_english && (
-          <Text style={styles.englishText}>{currentAyah.text_english}</Text>
-        )}
+      <View style={styles.content}>
+        {/* Ayah Display */}
+        <View style={styles.ayahContainer}>
+          <Text style={styles.arabicText}>{currentAyah.text_arabic}</Text>
+          
+          {currentAyah.text_english && (
+            <Text style={styles.englishText}>{currentAyah.text_english}</Text>
+          )}
 
-        {currentAyah.text_transliteration && (
-          <Text style={styles.transliterationText}>
-            {currentAyah.text_transliteration}
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.controlsContainer}>
-        <View style={styles.repeatControls}>
-          <Text style={styles.repeatLabel}>Repeat Count:</Text>
-          <View style={styles.repeatButtons}>
-            {[3, 5, 7, 10].map(count => (
-              <TouchableOpacity
-                key={count}
-                style={[
-                  styles.repeatButton,
-                  repeatCount === count && styles.repeatButtonActive
-                ]}
-                onPress={() => setRepeatCount(count)}
-              >
-                <Text style={[
-                  styles.repeatButtonText,
-                  repeatCount === count && styles.repeatButtonTextActive
-                ]}>
-                  {count}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            Repeat: {currentRepeat + 1} / {repeatCount}
-          </Text>
-        </View>
-
-        <View style={styles.audioControls}>
-          {!isPlaying ? (
-            <TouchableOpacity style={styles.playButton} onPress={playAudio}>
-              <Ionicons name="play" size={40} color="white" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.stopButton} onPress={stopAudio}>
-              <Ionicons name="stop" size={40} color="white" />
-            </TouchableOpacity>
+          {showTransliteration && currentAyah.text_transliteration && (
+            <Text style={styles.transliterationText}>
+              {currentAyah.text_transliteration}
+            </Text>
           )}
         </View>
 
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.memorizedButton} onPress={markAsMemorized}>
-            <Ionicons name="checkmark" size={24} color="white" />
-            <Text style={styles.buttonText}>Mark as Memorized</Text>
+        {/* Controls */}
+        <View style={styles.controlsContainer}>
+          {/* Transliteration Toggle */}
+          <TouchableOpacity 
+            style={styles.toggleButton}
+            onPress={() => setShowTransliteration(!showTransliteration)}
+          >
+            <Ionicons 
+              name={showTransliteration ? "eye" : "eye-off"} 
+              size={20} 
+              color="#22c55e" 
+            />
+            <Text style={styles.toggleText}>Transliteration</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.nextButton} onPress={loadNextAyah}>
-            <Ionicons name="arrow-forward" size={24} color="white" />
-            <Text style={styles.buttonText}>Next Ayah</Text>
-          </TouchableOpacity>
+          {/* Repeat Controls */}
+          <View style={styles.repeatControls}>
+            <Text style={styles.repeatLabel}>Repeat Count:</Text>
+            <View style={styles.repeatButtons}>
+              {[3, 5, 7, 10].map(count => (
+                <TouchableOpacity
+                  key={count}
+                  style={[
+                    styles.repeatButton,
+                    repeatCount === count && styles.repeatButtonActive
+                  ]}
+                  onPress={() => setRepeatCount(count)}
+                >
+                  <Text style={[
+                    styles.repeatButtonText,
+                    repeatCount === count && styles.repeatButtonTextActive
+                  ]}>
+                    {count}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Progress */}
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              Repeat: {currentRepeat + 1} / {repeatCount}
+            </Text>
+          </View>
+
+          {/* Audio Controls */}
+          <View style={styles.audioControls}>
+            {!isPlaying ? (
+              <TouchableOpacity style={styles.playButton} onPress={playAudio}>
+                <Ionicons name="play" size={40} color="white" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.stopButton} onPress={stopAudio}>
+                <Ionicons name="stop" size={40} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            {!isMemorized ? (
+              <TouchableOpacity style={styles.memorizedButton} onPress={markAsMemorized}>
+                <Ionicons name="checkmark" size={24} color="white" />
+                <Text style={styles.buttonText}>Mark as Memorized</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.memorizedIndicator}>
+                <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
+                <Text style={styles.memorizedText}>Memorized ✓</Text>
+              </View>
+            )}
+
+            {/* Navigation */}
+            <View style={styles.navigationButtons}>
+              <TouchableOpacity 
+                style={styles.navButton} 
+                onPress={loadPreviousAyah}
+                disabled={currentAyah.surah_number === 1 && currentAyah.ayah_number === 1}
+              >
+                <Ionicons name="chevron-back" size={24} color="white" />
+                <Text style={styles.navButtonText}>Previous</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.navButton} onPress={loadNextAyah}>
+                <Text style={styles.navButtonText}>Next</Text>
+                <Ionicons name="chevron-forward" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -293,27 +428,31 @@ const styles = StyleSheet.create({
   loadingText: {
     color: 'white',
     fontSize: 18,
-  },
-  errorText: {
-    color: 'white',
-    fontSize: 18,
-    textAlign: 'center',
-    marginTop: 50,
+    marginTop: 16,
   },
   header: {
-    padding: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: 20,
+    paddingTop: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  surahInfo: {
+  headerTitle: {
     fontSize: 18,
     color: '#22c55e',
     fontWeight: '600',
+    marginLeft: 16,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
   },
   ayahContainer: {
     padding: 20,
-    margin: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 16,
+    marginBottom: 20,
   },
   arabicText: {
     fontSize: 28,
@@ -337,10 +476,25 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   controlsContainer: {
-    padding: 20,
+    gap: 20,
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+  },
+  toggleText: {
+    color: '#22c55e',
+    fontSize: 16,
+    marginLeft: 8,
   },
   repeatControls: {
-    marginBottom: 20,
+    alignItems: 'center',
   },
   repeatLabel: {
     color: 'white',
@@ -350,6 +504,7 @@ const styles = StyleSheet.create({
   repeatButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    width: '100%',
   },
   repeatButton: {
     paddingVertical: 8,
@@ -369,7 +524,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'center',
-    marginBottom: 20,
   },
   progressText: {
     color: '#a3a3a3',
@@ -377,7 +531,7 @@ const styles = StyleSheet.create({
   },
   audioControls: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginVertical: 20,
   },
   playButton: {
     backgroundColor: '#22c55e',
@@ -396,7 +550,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButtons: {
-    gap: 12,
+    gap: 16,
   },
   memorizedButton: {
     backgroundColor: '#22c55e',
@@ -407,7 +561,34 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  nextButton: {
+  memorizedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    gap: 8,
+  },
+  memorizedText: {
+    color: '#22c55e',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  navButton: {
+    flex: 1,
     backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
@@ -416,7 +597,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  buttonText: {
+  navButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: 'white',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
