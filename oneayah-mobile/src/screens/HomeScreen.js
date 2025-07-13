@@ -7,21 +7,25 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProgress, useMemorizedAyahs } from '../hooks/useSupabaseData';
 import { supabaseService } from '../services/SupabaseService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-export default function HomeScreen({ navigation }) => {
-  const { user, loading, signInWithOAuth } = useAuth();
+export default function HomeScreen({ navigation }) {
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { progress } = useUserProgress();
   const { memorizedAyahs } = useMemorizedAyahs();
   const [dueReviewsCount, setDueReviewsCount] = useState(0);
   const [todaysAyah, setTodaysAyah] = useState(null);
+  const [signingIn, setSigningIn] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (user) {
@@ -46,9 +50,16 @@ export default function HomeScreen({ navigation }) => {
   };
 
   const handleGoogleSignIn = async () => {
-    const result = await signInWithOAuth('google');
-    if (!result.success) {
-      Alert.alert('Sign In Error', result.error);
+    setSigningIn(true);
+    try {
+      const result = await signInWithGoogle();
+      if (!result.success) {
+        Alert.alert('Sign In Error', result.error || 'Failed to sign in');
+      }
+    } catch (error) {
+      Alert.alert('Sign In Error', error.message);
+    } finally {
+      setSigningIn(false);
     }
   };
 
@@ -71,22 +82,23 @@ export default function HomeScreen({ navigation }) => {
     navigation.navigate('Progress', { initialTab: 'reviews' });
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color="#22c55e" />
+        <Text style={styles.loadingText}>Loading OneAyah...</Text>
       </View>
     );
   }
 
   if (!user) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <LinearGradient
           colors={['#1a1a1a', '#2d2d2d']}
           style={styles.gradient}
         >
-          <View style={styles.welcomeContainer}>
+          <ScrollView contentContainerStyle={styles.welcomeContainer}>
             <Ionicons name="book" size={80} color="#22c55e" />
             <Text style={styles.appTitle}>OneAyah</Text>
             <Text style={styles.subtitle}>Your Quran Memorization Journey</Text>
@@ -96,155 +108,164 @@ export default function HomeScreen({ navigation }) => {
             </Text>
             
             <TouchableOpacity 
-              style={styles.loginButton}
+              style={[styles.loginButton, signingIn && styles.loginButtonDisabled]}
               onPress={handleGoogleSignIn}
+              disabled={signingIn}
             >
-              <Ionicons name="logo-google" size={20} color="white" style={styles.googleIcon} />
-              <Text style={styles.loginButtonText}>Continue with Google</Text>
+              {signingIn ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name="logo-google" size={20} color="white" style={styles.googleIcon} />
+              )}
+              <Text style={styles.loginButtonText}>
+                {signingIn ? 'Signing in...' : 'Continue with Google'}
+              </Text>
             </TouchableOpacity>
             
             <Text style={styles.privacyText}>
               Sign in to save your progress across devices
             </Text>
-          </View>
+          </ScrollView>
         </LinearGradient>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <LinearGradient
-        colors={['#1a1a1a', '#2d2d2d']}
-        style={styles.gradient}
-      >
-        <View style={styles.header}>
-          <Text style={styles.greeting}>Assalamu Alaikum</Text>
-          <Text style={styles.userName}>
-            {user.user_metadata?.full_name?.split(' ')[0] || 'User'}
-          </Text>
-        </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView style={styles.scrollView}>
+        <LinearGradient
+          colors={['#1a1a1a', '#2d2d2d']}
+          style={styles.gradient}
+        >
+          <View style={styles.header}>
+            <Text style={styles.greeting}>Assalamu Alaikum</Text>
+            <Text style={styles.userName}>
+              {user.user_metadata?.full_name?.split(' ')[0] || 'User'}
+            </Text>
+          </View>
 
-        {/* Today's Goal Status */}
-        <View style={styles.todaySection}>
-          <Text style={styles.sectionTitle}>Today's Progress</Text>
-          
-          {/* Stats Grid */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Ionicons name="flame" size={24} color="#ff6b35" />
-              <Text style={styles.statNumber}>{progress?.current_streak || 0}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
-              <Text style={styles.statNumber}>{progress?.total_memorized || 0}</Text>
-              <Text style={styles.statLabel}>Memorized</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="refresh" size={24} color="#3b82f6" />
-              <Text style={styles.statNumber}>{dueReviewsCount}</Text>
-              <Text style={styles.statLabel}>Reviews</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="trophy" size={24} color="#fbbf24" />
-              <Text style={styles.statNumber}>{progress?.pages_completed || 0}</Text>
-              <Text style={styles.statLabel}>Pages</Text>
+          {/* Today's Goal Status */}
+          <View style={styles.todaySection}>
+            <Text style={styles.sectionTitle}>Today's Progress</Text>
+            
+            {/* Stats Grid */}
+            <View style={styles.statsContainer}>
+              <View style={styles.statCard}>
+                <Ionicons name="flame" size={24} color="#ff6b35" />
+                <Text style={styles.statNumber}>{progress?.current_streak || 0}</Text>
+                <Text style={styles.statLabel}>Day Streak</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
+                <Text style={styles.statNumber}>{progress?.total_memorized || 0}</Text>
+                <Text style={styles.statLabel}>Memorized</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="refresh" size={24} color="#3b82f6" />
+                <Text style={styles.statNumber}>{dueReviewsCount}</Text>
+                <Text style={styles.statLabel}>Reviews</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="trophy" size={24} color="#fbbf24" />
+                <Text style={styles.statNumber}>{progress?.pages_completed || 0}</Text>
+                <Text style={styles.statLabel}>Pages</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Due Reviews Alert */}
-        {dueReviewsCount > 0 && (
-          <TouchableOpacity style={styles.reviewAlert} onPress={handleReviewPress}>
-            <View style={styles.reviewAlertContent}>
-              <Ionicons name="notifications" size={24} color="#ff6b35" />
-              <View style={styles.reviewAlertText}>
-                <Text style={styles.reviewAlertTitle}>
-                  {dueReviewsCount} Review{dueReviewsCount === 1 ? '' : 's'} Due!
-                </Text>
-                <Text style={styles.reviewAlertSubtitle}>
-                  Strengthen your memory with spaced repetition
-                </Text>
+          {/* Due Reviews Alert */}
+          {dueReviewsCount > 0 && (
+            <TouchableOpacity style={styles.reviewAlert} onPress={handleReviewPress}>
+              <View style={styles.reviewAlertContent}>
+                <Ionicons name="notifications" size={24} color="#ff6b35" />
+                <View style={styles.reviewAlertText}>
+                  <Text style={styles.reviewAlertTitle}>
+                    {dueReviewsCount} Review{dueReviewsCount === 1 ? '' : 's'} Due!
+                  </Text>
+                  <Text style={styles.reviewAlertSubtitle}>
+                    Strengthen your memory with spaced repetition
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#ff6b35" />
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#ff6b35" />
+            </TouchableOpacity>
+          )}
+
+          {/* Today's Ayah */}
+          {todaysAyah && (
+            <View style={styles.todaysAyahSection}>
+              <Text style={styles.sectionTitle}>Today's Ayah</Text>
+              <View style={styles.todaysAyahCard}>
+                <View style={styles.ayahHeader}>
+                  <Text style={styles.ayahReference}>
+                    Surah {todaysAyah.surah}, Ayah {todaysAyah.ayah}
+                  </Text>
+                  <Text style={styles.ayahDate}>
+                    {new Date().toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      month: 'short', 
+                      day: 'numeric' 
+                    })}
+                  </Text>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.startButton}
+                  onPress={handleStartMemorizing}
+                >
+                  <Ionicons name="play" size={20} color="white" />
+                  <Text style={styles.startButtonText}>Start Memorizing</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </TouchableOpacity>
-        )}
+          )}
 
-        {/* Today's Ayah */}
-        {todaysAyah && (
-          <View style={styles.todaysAyahSection}>
-            <Text style={styles.sectionTitle}>Today's Ayah</Text>
-            <View style={styles.todaysAyahCard}>
-              <View style={styles.ayahHeader}>
-                <Text style={styles.ayahReference}>
-                  Surah {todaysAyah.surah}, Ayah {todaysAyah.ayah}
-                </Text>
-                <Text style={styles.ayahDate}>
-                  {new Date().toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </Text>
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.startButton}
-                onPress={handleStartMemorizing}
+          {/* Action Cards */}
+          <View style={styles.actionsSection}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={handleStartMemorizing}
+            >
+              <LinearGradient
+                colors={['#22c55e', '#16a34a']}
+                style={styles.actionGradient}
               >
-                <Ionicons name="play" size={20} color="white" />
-                <Text style={styles.startButtonText}>Start Memorizing</Text>
-              </TouchableOpacity>
+                <Ionicons name="add-circle" size={40} color="white" />
+                <Text style={styles.actionTitle}>Continue Learning</Text>
+                <Text style={styles.actionSubtitle}>Memorize new ayahs</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Progress')}
+            >
+              <LinearGradient
+                colors={['#3b82f6', '#2563eb']}
+                style={styles.actionGradient}
+              >
+                <Ionicons name="analytics" size={40} color="white" />
+                <Text style={styles.actionTitle}>View Progress</Text>
+                <Text style={styles.actionSubtitle}>Check your achievements</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Motivational Section */}
+          {progress?.current_streak > 0 && (
+            <View style={styles.motivationSection}>
+              <Text style={styles.motivationText}>
+                🔥 You're on fire! {progress.current_streak} day streak
+              </Text>
+              <Text style={styles.motivationSubtext}>
+                Don't break the chain - memorize today!
+              </Text>
             </View>
-          </View>
-        )}
-
-        {/* Action Cards */}
-        <View style={styles.actionsSection}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={handleStartMemorizing}
-          >
-            <LinearGradient
-              colors={['#22c55e', '#16a34a']}
-              style={styles.actionGradient}
-            >
-              <Ionicons name="add-circle" size={40} color="white" />
-              <Text style={styles.actionTitle}>Continue Learning</Text>
-              <Text style={styles.actionSubtitle}>Memorize new ayahs</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('Progress')}
-          >
-            <LinearGradient
-              colors={['#3b82f6', '#2563eb']}
-              style={styles.actionGradient}
-            >
-              <Ionicons name="analytics" size={40} color="white" />
-              <Text style={styles.actionTitle}>View Progress</Text>
-              <Text style={styles.actionSubtitle}>Check your achievements</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Motivational Section */}
-        {progress?.current_streak > 0 && (
-          <View style={styles.motivationSection}>
-            <Text style={styles.motivationText}>
-              🔥 You're on fire! {progress.current_streak} day streak
-            </Text>
-            <Text style={styles.motivationSubtext}>
-              Don't break the chain - memorize today!
-            </Text>
-          </View>
-        )}
-      </LinearGradient>
-    </ScrollView>
+          )}
+        </LinearGradient>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -252,6 +273,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1a1a1a',
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -262,13 +286,14 @@ const styles = StyleSheet.create({
   loadingText: {
     color: 'white',
     fontSize: 18,
+    marginTop: 16,
   },
   gradient: {
     flex: 1,
     minHeight: '100%',
   },
   welcomeContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -301,6 +326,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 25,
     marginBottom: 20,
+    minHeight: 50,
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
   },
   googleIcon: {
     marginRight: 10,
@@ -309,6 +338,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+    marginLeft: 10,
   },
   privacyText: {
     fontSize: 14,
@@ -317,7 +347,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   greeting: {
     fontSize: 24,
@@ -416,6 +446,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 12,
+    minHeight: 48,
   },
   startButtonText: {
     color: 'white',

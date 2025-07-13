@@ -5,15 +5,20 @@ export const useSurahs = () => {
   const [surahs, setSurahs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { supabase } = useAuth();
+  const { supabase, isInitialized } = useAuth();
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    if (!isInitialized) return;
+    
     mountedRef.current = true;
     
     const fetchSurahs = async () => {
       try {
+        console.log('🔄 Fetching surahs...');
         setLoading(true);
+        setError(null);
+        
         const { data, error } = await supabase
           .from('surahs')
           .select('*')
@@ -22,10 +27,11 @@ export const useSurahs = () => {
         if (error) throw error;
         
         if (mountedRef.current) {
+          console.log('✅ Surahs fetched:', data?.length || 0);
           setSurahs(data || []);
         }
       } catch (err) {
-        console.error('Error fetching surahs:', err);
+        console.error('❌ Error fetching surahs:', err);
         if (mountedRef.current) {
           setError(err.message);
         }
@@ -41,7 +47,7 @@ export const useSurahs = () => {
     return () => {
       mountedRef.current = false;
     };
-  }, [supabase]);
+  }, [supabase, isInitialized]);
 
   return { surahs, loading, error };
 };
@@ -50,17 +56,20 @@ export const useAyahs = (surahNumber) => {
   const [ayahs, setAyahs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { supabase } = useAuth();
+  const { supabase, isInitialized } = useAuth();
   const mountedRef = useRef(true);
 
   useEffect(() => {
-    if (!surahNumber) return;
+    if (!surahNumber || !isInitialized) return;
     
     mountedRef.current = true;
 
     const fetchAyahs = async () => {
       try {
+        console.log('🔄 Fetching ayahs for surah:', surahNumber);
         setLoading(true);
+        setError(null);
+        
         const { data, error } = await supabase
           .from('ayahs')
           .select('*')
@@ -70,10 +79,11 @@ export const useAyahs = (surahNumber) => {
         if (error) throw error;
         
         if (mountedRef.current) {
+          console.log('✅ Ayahs fetched:', data?.length || 0);
           setAyahs(data || []);
         }
       } catch (err) {
-        console.error('Error fetching ayahs:', err);
+        console.error('❌ Error fetching ayahs:', err);
         if (mountedRef.current) {
           setError(err.message);
         }
@@ -89,27 +99,30 @@ export const useAyahs = (surahNumber) => {
     return () => {
       mountedRef.current = false;
     };
-  }, [surahNumber, supabase]);
+  }, [surahNumber, supabase, isInitialized]);
 
   return { ayahs, loading, error };
 };
 
 export const useMemorizedAyahs = () => {
-  const { user, supabase } = useAuth();
+  const { user, supabase, isInitialized } = useAuth();
   const [memorizedAyahs, setMemorizedAyahs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
 
   const fetchMemorizedAyahs = async () => {
-    if (!user?.id || !mountedRef.current) {
+    if (!user?.id || !mountedRef.current || !isInitialized) {
       setMemorizedAyahs([]);
       setLoading(false);
       return;
     }
 
     try {
+      console.log('🔄 Fetching memorized ayahs for user:', user.id);
       setLoading(true);
+      setError(null);
+      
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .select('*')
@@ -119,10 +132,11 @@ export const useMemorizedAyahs = () => {
       if (error) throw error;
       
       if (mountedRef.current) {
+        console.log('✅ Memorized ayahs fetched:', data?.length || 0);
         setMemorizedAyahs(data || []);
       }
     } catch (err) {
-      console.error('Error fetching memorized ayahs:', err);
+      console.error('❌ Error fetching memorized ayahs:', err);
       if (mountedRef.current) {
         setError(err.message);
       }
@@ -135,12 +149,15 @@ export const useMemorizedAyahs = () => {
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchMemorizedAyahs();
+    
+    if (isInitialized) {
+      fetchMemorizedAyahs();
+    }
 
     return () => {
       mountedRef.current = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isInitialized]);
 
   const addMemorizedAyah = async (surahNumber, ayahNumber) => {
     if (!user?.id) {
@@ -148,6 +165,8 @@ export const useMemorizedAyahs = () => {
     }
 
     try {
+      console.log('🔄 Adding memorized ayah:', { surahNumber, ayahNumber });
+      
       const { data, error } = await supabase
         .from('memorized_ayahs')
         .insert({
@@ -168,9 +187,10 @@ export const useMemorizedAyahs = () => {
       // Update user progress
       await updateUserProgress(surahNumber, ayahNumber);
 
+      console.log('✅ Ayah memorized successfully');
       return data;
     } catch (err) {
-      console.error('Error adding memorized ayah:', err);
+      console.error('❌ Error adding memorized ayah:', err);
       throw err;
     }
   };
@@ -191,7 +211,7 @@ export const useMemorizedAyahs = () => {
 
       if (error) throw error;
     } catch (err) {
-      console.error('Error updating user progress:', err);
+      console.error('❌ Error updating user progress:', err);
     }
   };
 
@@ -205,21 +225,24 @@ export const useMemorizedAyahs = () => {
 };
 
 export const useUserProgress = () => {
-  const { user, supabase } = useAuth();
+  const { user, supabase, isInitialized } = useAuth();
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
 
   const fetchProgress = async () => {
-    if (!user?.id || !mountedRef.current) {
+    if (!user?.id || !mountedRef.current || !isInitialized) {
       setProgress(null);
       setLoading(false);
       return;
     }
 
     try {
+      console.log('🔄 Fetching user progress for:', user.id);
       setLoading(true);
+      setError(null);
+      
       const { data, error } = await supabase
         .from('user_progress')
         .select('*')
@@ -229,10 +252,11 @@ export const useUserProgress = () => {
       if (error && error.code !== 'PGRST116') throw error;
       
       if (mountedRef.current) {
+        console.log('✅ User progress fetched:', data ? 'Found' : 'Not found');
         setProgress(data);
       }
     } catch (err) {
-      console.error('Error fetching user progress:', err);
+      console.error('❌ Error fetching user progress:', err);
       if (mountedRef.current) {
         setError(err.message);
       }
@@ -245,12 +269,15 @@ export const useUserProgress = () => {
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchProgress();
+    
+    if (isInitialized) {
+      fetchProgress();
+    }
 
     return () => {
       mountedRef.current = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isInitialized]);
 
   return {
     progress,
