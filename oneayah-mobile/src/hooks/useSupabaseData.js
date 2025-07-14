@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from '../providers/AuthProvider';
 
 export const useSurahs = () => {
   const [surahs, setSurahs] = useState([]);

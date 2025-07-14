@@ -13,8 +13,7 @@ import ProgressScreen from './src/screens/ProgressScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 // Providers
-import { AuthProvider } from './src/hooks/useAuth';
-import { SupabaseProvider } from './src/hooks/useSupabase';
+import { AuthProvider } from './src/providers/AuthProvider';
 
 const Tab = createMaterialTopTabNavigator();
 const { width } = Dimensions.get('window');
@@ -77,12 +76,12 @@ function AppNavigator() {
           },
           tabBarActiveTintColor: '#22c55e',
           tabBarInactiveTintColor: '#6b7280',
-          tabBarStyle: {
+            tabBarStyle: {
             backgroundColor: '#1a1a1a',
             borderTopColor: 'rgba(255, 255, 255, 0.1)',
             borderTopWidth: 1,
-            height: 80 + insets.bottom,
-            paddingBottom: insets.bottom,
+            height: Math.max(80, 80 + insets.bottom),
+            paddingBottom: Math.max(8, insets.bottom),
             paddingTop: 8,
             elevation: 8,
             shadowColor: '#000',
@@ -137,14 +136,12 @@ function AppNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SupabaseProvider>
-        <AuthProvider>
-          <StatusBar style="light" backgroundColor="#1a1a1a" />
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
-        </AuthProvider>
-      </SupabaseProvider>
+      <AuthProvider>
+        <StatusBar style="light" backgroundColor="#1a1a1a" />
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

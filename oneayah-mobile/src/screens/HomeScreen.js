@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../providers/AuthProvider';
 import { useUserProgress, useMemorizedAyahs } from '../hooks/useSupabaseData';
 import { supabaseService } from '../services/SupabaseService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
