@@ -19,7 +19,7 @@ export default function ProgressScreen({ navigation, route }) {
   const { user } = useAuth();
   const { progress } = useUserProgress();
   const { memorizedAyahs } = useMemorizedAyahs();
-  const [activeTab, setActiveTab] = useState(route?.params?.initialTab || 'overview');
+  const [activeTab, setActiveTab] = useState((route && route.params && route.params.initialTab) ? route.params.initialTab : 'overview');
   const [dueReviews, setDueReviews] = useState([]);
   const [dailySessions, setDailySessions] = useState([]);
   const [loading, setLoading] = useState(false);

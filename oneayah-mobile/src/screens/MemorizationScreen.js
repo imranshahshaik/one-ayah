@@ -33,6 +33,22 @@ export default function MemorizationScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
+    const initializeAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: false,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (error) {
+        console.log('Audio setup error:', error);
+      }
+    };
+
+    initializeAudio();
+    
     if (isInitialized) {
       loadCurrentAyah();
     }
