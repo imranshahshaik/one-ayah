@@ -13,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { useUserProgress, useMemorizedAyahs } from '../hooks/useSupabaseData';
-import { supabaseService } from '../services/SupabaseService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -22,32 +21,8 @@ export default function HomeScreen({ navigation }) {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { progress } = useUserProgress();
   const { memorizedAyahs } = useMemorizedAyahs();
-  const [dueReviewsCount, setDueReviewsCount] = useState(0);
-  const [todaysAyah, setTodaysAyah] = useState(null);
   const [signingIn, setSigningIn] = useState(false);
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    if (user) {
-      loadDueReviews();
-      loadTodaysAyah();
-    }
-  }, [user, progress]);
-
-  const loadDueReviews = async () => {
-    try {
-      const reviews = await supabaseService.getDueReviews();
-      setDueReviewsCount(reviews.length);
-    } catch (error) {
-      console.error('Error loading due reviews:', error);
-    }
-  };
-
-  const loadTodaysAyah = async () => {
-    const surah = progress?.last_visited_surah || 1;
-    const ayah = progress?.last_visited_ayah || 1;
-    setTodaysAyah({ surah, ayah });
-  };
 
   const handleGoogleSignIn = async () => {
     setSigningIn(true);
@@ -76,10 +51,6 @@ export default function HomeScreen({ navigation }) {
         ]
       );
     }
-  };
-
-  const handleReviewPress = () => {
-    navigation.navigate('Progress', { initialTab: 'reviews' });
   };
 
   if (authLoading) {
@@ -145,11 +116,9 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* Today's Goal Status */}
           <View style={styles.todaySection}>
             <Text style={styles.sectionTitle}>Today's Progress</Text>
             
-            {/* Stats Grid */}
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
                 <Ionicons name="flame" size={24} color="#ff6b35" />
@@ -162,66 +131,44 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.statLabel}>Memorized</Text>
               </View>
               <View style={styles.statCard}>
-                <Ionicons name="refresh" size={24} color="#3b82f6" />
-                <Text style={styles.statNumber}>{dueReviewsCount}</Text>
-                <Text style={styles.statLabel}>Reviews</Text>
-              </View>
-              <View style={styles.statCard}>
                 <Ionicons name="trophy" size={24} color="#fbbf24" />
                 <Text style={styles.statNumber}>{progress?.pages_completed || 0}</Text>
                 <Text style={styles.statLabel}>Pages</Text>
               </View>
+              <View style={styles.statCard}>
+                <Ionicons name="book" size={24} color="#3b82f6" />
+                <Text style={styles.statNumber}>{memorizedAyahs.length}</Text>
+                <Text style={styles.statLabel}>Total</Text>
+              </View>
             </View>
           </View>
 
-          {/* Due Reviews Alert */}
-          {dueReviewsCount > 0 && (
-            <TouchableOpacity style={styles.reviewAlert} onPress={handleReviewPress}>
-              <View style={styles.reviewAlertContent}>
-                <Ionicons name="notifications" size={24} color="#ff6b35" />
-                <View style={styles.reviewAlertText}>
-                  <Text style={styles.reviewAlertTitle}>
-                    {dueReviewsCount} Review{dueReviewsCount === 1 ? '' : 's'} Due!
-                  </Text>
-                  <Text style={styles.reviewAlertSubtitle}>
-                    Strengthen your memory with spaced repetition
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#ff6b35" />
+          <View style={styles.todaysAyahSection}>
+            <Text style={styles.sectionTitle}>Today's Ayah</Text>
+            <View style={styles.todaysAyahCard}>
+              <View style={styles.ayahHeader}>
+                <Text style={styles.ayahReference}>
+                  Surah {progress?.last_visited_surah || 1}, Ayah {progress?.last_visited_ayah || 1}
+                </Text>
+                <Text style={styles.ayahDate}>
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                </Text>
               </View>
-            </TouchableOpacity>
-          )}
-
-          {/* Today's Ayah */}
-          {todaysAyah && (
-            <View style={styles.todaysAyahSection}>
-              <Text style={styles.sectionTitle}>Today's Ayah</Text>
-              <View style={styles.todaysAyahCard}>
-                <View style={styles.ayahHeader}>
-                  <Text style={styles.ayahReference}>
-                    Surah {todaysAyah.surah}, Ayah {todaysAyah.ayah}
-                  </Text>
-                  <Text style={styles.ayahDate}>
-                    {new Date().toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}
-                  </Text>
-                </View>
-                
-                <TouchableOpacity 
-                  style={styles.startButton}
-                  onPress={handleStartMemorizing}
-                >
-                  <Ionicons name="play" size={20} color="white" />
-                  <Text style={styles.startButtonText}>Start Memorizing</Text>
-                </TouchableOpacity>
-              </View>
+              
+              <TouchableOpacity 
+                style={styles.startButton}
+                onPress={handleStartMemorizing}
+              >
+                <Ionicons name="play" size={20} color="white" />
+                <Text style={styles.startButtonText}>Start Memorizing</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
 
-          {/* Action Cards */}
           <View style={styles.actionsSection}>
             <TouchableOpacity 
               style={styles.actionCard}
@@ -252,7 +199,6 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Motivational Section */}
           {progress?.current_streak > 0 && (
             <View style={styles.motivationSection}>
               <Text style={styles.motivationText}>
@@ -391,32 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#a3a3a3',
     marginTop: 4,
-  },
-  reviewAlert: {
-    margin: 20,
-    backgroundColor: 'rgba(255, 107, 53, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 53, 0.3)',
-  },
-  reviewAlertContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  reviewAlertText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  reviewAlertTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ff6b35',
-  },
-  reviewAlertSubtitle: {
-    fontSize: 14,
-    color: '#ff8c5a',
-    marginTop: 2,
   },
   todaysAyahSection: {
     padding: 20,

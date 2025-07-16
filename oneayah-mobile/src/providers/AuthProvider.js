@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../config/supabase';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
 
-const AuthContext = createContext();
+WebBrowser.maybeCompleteAuthSession();
+
+const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -16,7 +20,6 @@ export const AuthProvider = ({ children }) => {
       try {
         console.log('🔄 Initializing auth...');
         
-        // Get initial session
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (mounted) {
@@ -39,7 +42,6 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔄 Auth state change:', event, session?.user?.email);
@@ -79,10 +81,16 @@ export const AuthProvider = ({ children }) => {
       console.log('🔄 Starting Google OAuth...');
       setLoading(true);
 
+      const redirectTo = AuthSession.makeRedirectUri({
+        useProxy: true,
+      });
+      
+      console.log('OAuth redirect URL:', redirectTo);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'oneayah://auth/callback',
+          redirectTo,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -95,8 +103,33 @@ export const AuthProvider = ({ children }) => {
         throw error;
       }
 
-      console.log('✅ OAuth URL generated:', data.url);
-      return { success: true };
+      if (data.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectTo
+        );
+
+        if (result.type === 'success') {
+          const url = result.url;
+          const params = new URLSearchParams(url.split('#')[1]);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken) {
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (sessionError) throw sessionError;
+            
+            console.log('✅ OAuth success');
+            return { success: true };
+          }
+        }
+      }
+
+      throw new Error('OAuth flow was cancelled or failed');
     } catch (error) {
       console.error('❌ OAuth error:', error);
       return { success: false, error: error.message };

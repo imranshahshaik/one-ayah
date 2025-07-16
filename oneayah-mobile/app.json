@@ -23,24 +23,14 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a1a"
       },
-      "package": "com.oneayah.mobile",
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+      "package": "com.oneayah.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-av",
-      [
-        "expo-auth-session",
-        {
-          "scheme": "oneayah"
-        }
-      ]
-    ]
+      "expo-av"
+    ],
+    "scheme": "oneayah"
   }
 }

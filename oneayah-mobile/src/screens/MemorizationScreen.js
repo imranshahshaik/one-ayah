@@ -12,7 +12,6 @@ import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { useUserProgress, useMemorizedAyahs } from '../hooks/useSupabaseData';
-import { supabaseService } from '../services/SupabaseService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function MemorizationScreen({ navigation }) {
@@ -61,7 +60,6 @@ export default function MemorizationScreen({ navigation }) {
   }, [sound, progress, isInitialized]);
 
   useEffect(() => {
-    // Check if current ayah is memorized
     if (currentAyah && memorizedAyahs.length >= 0) {
       const isAlreadyMemorized = memorizedAyahs.some(
         ayah => ayah.surah_number === currentAyah.surah_number && 
@@ -78,13 +76,11 @@ export default function MemorizationScreen({ navigation }) {
       setLoading(true);
       console.log('🔄 Loading current ayah...');
       
-      // Get user's current progress or default to Al-Fatihah 1:1
       const surahNumber = progress?.last_visited_surah || 1;
       const ayahNumber = progress?.last_visited_ayah || 1;
 
       console.log('📖 Loading ayah:', surahNumber, ayahNumber);
 
-      // Get the ayah data
       const { data: ayah, error } = await supabase
         .from('ayahs')
         .select('*')
@@ -94,7 +90,6 @@ export default function MemorizationScreen({ navigation }) {
 
       if (error) {
         console.error('❌ Error fetching ayah:', error);
-        // Fallback to Al-Fatihah 1:1
         const { data: fallbackAyah } = await supabase
           .from('ayahs')
           .select('*')
@@ -143,7 +138,6 @@ export default function MemorizationScreen({ navigation }) {
           setIsPlaying(false);
           if (currentRepeat < repeatCount - 1) {
             setCurrentRepeat(prev => prev + 1);
-            // Auto-replay after a short delay
             setTimeout(() => {
               playAudio();
             }, 1000);
@@ -174,11 +168,6 @@ export default function MemorizationScreen({ navigation }) {
       console.log('🔄 Marking as memorized...');
       await addMemorizedAyah(currentAyah.surah_number, currentAyah.ayah_number);
       
-      // Update daily session
-      await supabaseService.updateDailySession({
-        ayahs_memorized: 1
-      });
-
       setIsMemorized(true);
       
       Alert.alert(
@@ -190,7 +179,6 @@ export default function MemorizationScreen({ navigation }) {
         ]
       );
       
-      // Refresh data
       refetchProgress();
       refetchMemorized();
       
@@ -208,7 +196,6 @@ export default function MemorizationScreen({ navigation }) {
     try {
       console.log('🔄 Loading next ayah...');
       
-      // Get next ayah
       const { data: nextAyah } = await supabase
         .from('ayahs')
         .select('*')
@@ -218,13 +205,7 @@ export default function MemorizationScreen({ navigation }) {
 
       if (nextAyah) {
         setCurrentAyah(nextAyah);
-        // Update user progress
-        await supabaseService.updateUserProgress({
-          last_visited_surah: nextAyah.surah_number,
-          last_visited_ayah: nextAyah.ayah_number,
-        });
       } else {
-        // Move to next surah
         const { data: firstAyahNextSurah } = await supabase
           .from('ayahs')
           .select('*')
@@ -234,10 +215,6 @@ export default function MemorizationScreen({ navigation }) {
 
         if (firstAyahNextSurah) {
           setCurrentAyah(firstAyahNextSurah);
-          await supabaseService.updateUserProgress({
-            last_visited_surah: firstAyahNextSurah.surah_number,
-            last_visited_ayah: 1,
-          });
         }
       }
       
@@ -245,61 +222,6 @@ export default function MemorizationScreen({ navigation }) {
       refetchProgress();
     } catch (error) {
       console.error('❌ Error loading next ayah:', error);
-    }
-  };
-
-  const loadPreviousAyah = async () => {
-    if (!currentAyah || !supabase) return;
-
-    try {
-      console.log('🔄 Loading previous ayah...');
-      
-      if (currentAyah.ayah_number > 1) {
-        // Previous ayah in same surah
-        const { data: prevAyah } = await supabase
-          .from('ayahs')
-          .select('*')
-          .eq('surah_number', currentAyah.surah_number)
-          .eq('ayah_number', currentAyah.ayah_number - 1)
-          .single();
-
-        if (prevAyah) {
-          setCurrentAyah(prevAyah);
-          await supabaseService.updateUserProgress({
-            last_visited_surah: prevAyah.surah_number,
-            last_visited_ayah: prevAyah.ayah_number,
-          });
-        }
-      } else if (currentAyah.surah_number > 1) {
-        // Last ayah of previous surah
-        const { data: prevSurah } = await supabase
-          .from('surahs')
-          .select('number_of_ayahs')
-          .eq('number', currentAyah.surah_number - 1)
-          .single();
-
-        if (prevSurah) {
-          const { data: lastAyahPrevSurah } = await supabase
-            .from('ayahs')
-            .select('*')
-            .eq('surah_number', currentAyah.surah_number - 1)
-            .eq('ayah_number', prevSurah.number_of_ayahs)
-            .single();
-
-          if (lastAyahPrevSurah) {
-            setCurrentAyah(lastAyahPrevSurah);
-            await supabaseService.updateUserProgress({
-              last_visited_surah: lastAyahPrevSurah.surah_number,
-              last_visited_ayah: lastAyahPrevSurah.ayah_number,
-            });
-          }
-        }
-      }
-      
-      setIsMemorized(false);
-      refetchProgress();
-    } catch (error) {
-      console.error('❌ Error loading previous ayah:', error);
     }
   };
 
@@ -344,7 +266,6 @@ export default function MemorizationScreen({ navigation }) {
 
       <ScrollView style={styles.content}>
         <View style={styles.contentPadding}>
-          {/* Ayah Display */}
           <View style={styles.ayahContainer}>
             <Text style={styles.arabicText}>{currentAyah.text_arabic}</Text>
             
@@ -359,9 +280,7 @@ export default function MemorizationScreen({ navigation }) {
             )}
           </View>
 
-          {/* Controls */}
           <View style={styles.controlsContainer}>
-            {/* Transliteration Toggle */}
             <TouchableOpacity 
               style={styles.toggleButton}
               onPress={() => setShowTransliteration(!showTransliteration)}
@@ -374,7 +293,6 @@ export default function MemorizationScreen({ navigation }) {
               <Text style={styles.toggleText}>Transliteration</Text>
             </TouchableOpacity>
 
-            {/* Repeat Controls */}
             <View style={styles.repeatControls}>
               <Text style={styles.repeatLabel}>Repeat Count:</Text>
               <View style={styles.repeatButtons}>
@@ -398,14 +316,12 @@ export default function MemorizationScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Progress */}
             <View style={styles.progressContainer}>
               <Text style={styles.progressText}>
                 Repeat: {currentRepeat + 1} / {repeatCount}
               </Text>
             </View>
 
-            {/* Audio Controls */}
             <View style={styles.audioControls}>
               {!isPlaying ? (
                 <TouchableOpacity style={styles.playButton} onPress={playAudio}>
@@ -418,7 +334,6 @@ export default function MemorizationScreen({ navigation }) {
               )}
             </View>
 
-            {/* Action Buttons */}
             <View style={styles.actionButtons}>
               {!isMemorized ? (
                 <TouchableOpacity 
@@ -442,25 +357,10 @@ export default function MemorizationScreen({ navigation }) {
                 </View>
               )}
 
-              {/* Navigation */}
-              <View style={styles.navigationButtons}>
-                <TouchableOpacity 
-                  style={[
-                    styles.navButton,
-                    (currentAyah.surah_number === 1 && currentAyah.ayah_number === 1) && styles.navButtonDisabled
-                  ]} 
-                  onPress={loadPreviousAyah}
-                  disabled={currentAyah.surah_number === 1 && currentAyah.ayah_number === 1}
-                >
-                  <Ionicons name="chevron-back" size={24} color="white" />
-                  <Text style={styles.navButtonText}>Previous</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.navButton} onPress={loadNextAyah}>
-                  <Text style={styles.navButtonText}>Next</Text>
-                  <Ionicons name="chevron-forward" size={24} color="white" />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.navButton} onPress={loadNextAyah}>
+                <Text style={styles.navButtonText}>Next Ayah</Text>
+                <Ionicons name="chevron-forward" size={24} color="white" />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -649,13 +549,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  navigationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
   navButton: {
-    flex: 1,
     backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
@@ -664,9 +558,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
     minHeight: 56,
-  },
-  navButtonDisabled: {
-    opacity: 0.5,
   },
   navButtonText: {
     color: 'white',

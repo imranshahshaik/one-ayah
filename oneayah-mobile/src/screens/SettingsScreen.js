@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen({ navigation }) {
   const { user, signOut } = useAuth();
@@ -24,6 +25,7 @@ export default function SettingsScreen({ navigation }) {
     fontSize: 'medium',
   });
   const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadSettings();
@@ -97,14 +99,14 @@ export default function SettingsScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="white" />
@@ -113,7 +115,6 @@ export default function SettingsScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.content}>
-        {/* Profile Section */}
         {user && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Profile</Text>
@@ -131,7 +132,6 @@ export default function SettingsScreen({ navigation }) {
           </View>
         )}
 
-        {/* Reading Preferences */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Reading Preferences</Text>
           
@@ -160,20 +160,8 @@ export default function SettingsScreen({ navigation }) {
               thumbColor={settings.transliterationOn ? '#ffffff' : '#f4f3f4'}
             />
           </View>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="text-outline" size={20} color="#a3a3a3" />
-              <Text style={styles.settingLabel}>Font Size</Text>
-            </View>
-            <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>{settings.fontSize}</Text>
-              <Ionicons name="chevron-forward" size={16} color="#a3a3a3" />
-            </View>
-          </TouchableOpacity>
         </View>
 
-        {/* Audio Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Audio Settings</Text>
           
@@ -189,20 +177,8 @@ export default function SettingsScreen({ navigation }) {
               thumbColor={settings.autoPlay ? '#ffffff' : '#f4f3f4'}
             />
           </View>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="repeat" size={20} color="#a3a3a3" />
-              <Text style={styles.settingLabel}>Default Repeat Count</Text>
-            </View>
-            <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>{settings.playbackCount}x</Text>
-              <Ionicons name="chevron-forward" size={16} color="#a3a3a3" />
-            </View>
-          </TouchableOpacity>
         </View>
 
-        {/* App Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>App Settings</Text>
           
@@ -218,49 +194,8 @@ export default function SettingsScreen({ navigation }) {
               thumbColor={settings.notifications ? '#ffffff' : '#f4f3f4'}
             />
           </View>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="time" size={20} color="#a3a3a3" />
-              <Text style={styles.settingLabel}>Reminder Time</Text>
-            </View>
-            <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>8:00 AM</Text>
-              <Ionicons name="chevron-forward" size={16} color="#a3a3a3" />
-            </View>
-          </TouchableOpacity>
         </View>
 
-        {/* Support */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support</Text>
-          
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="help-circle" size={20} color="#a3a3a3" />
-              <Text style={styles.settingLabel}>Help & FAQ</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#a3a3a3" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="mail" size={20} color="#a3a3a3" />
-              <Text style={styles.settingLabel}>Contact Support</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#a3a3a3" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="star" size={20} color="#a3a3a3" />
-              <Text style={styles.settingLabel}>Rate App</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#a3a3a3" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Reset & Sign Out */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.resetButton} onPress={resetSettings}>
             <Ionicons name="refresh" size={20} color="#ef4444" />
@@ -275,7 +210,6 @@ export default function SettingsScreen({ navigation }) {
           )}
         </View>
 
-        {/* App Info */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>OneAyah Mobile v1.0.0</Text>
           <Text style={styles.footerSubtext}>
@@ -306,7 +240,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -379,15 +312,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     marginLeft: 12,
-  },
-  settingRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingValue: {
-    fontSize: 16,
-    color: '#a3a3a3',
-    marginRight: 8,
   },
   resetButton: {
     flexDirection: 'row',

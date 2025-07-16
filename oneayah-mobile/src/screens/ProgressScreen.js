@@ -11,41 +11,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { useUserProgress, useMemorizedAyahs } from '../hooks/useSupabaseData';
-import { supabaseService } from '../services/SupabaseService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-export default function ProgressScreen({ navigation, route }) {
+export default function ProgressScreen({ navigation }) {
   const { user } = useAuth();
   const { progress } = useUserProgress();
   const { memorizedAyahs } = useMemorizedAyahs();
-  const [activeTab, setActiveTab] = useState((route && route.params && route.params.initialTab) ? route.params.initialTab : 'overview');
-  const [dueReviews, setDueReviews] = useState([]);
-  const [dailySessions, setDailySessions] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      loadProgressData();
-    }
-  }, [user, activeTab]);
-
-  const loadProgressData = async () => {
-    setLoading(true);
-    try {
-      if (activeTab === 'reviews') {
-        const reviews = await supabaseService.getDueReviews();
-        setDueReviews(reviews);
-      } else if (activeTab === 'calendar') {
-        const sessions = await supabaseService.getDailySessions(30);
-        setDailySessions(sessions);
-      }
-    } catch (error) {
-      console.error('Error loading progress data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [activeTab, setActiveTab] = useState('overview');
+  const insets = useSafeAreaInsets();
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -58,7 +33,6 @@ export default function ProgressScreen({ navigation, route }) {
 
   const renderOverview = () => (
     <ScrollView style={styles.tabContent}>
-      {/* Progress Stats */}
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
           <Ionicons name="checkmark-circle" size={32} color="#22c55e" />
@@ -85,7 +59,6 @@ export default function ProgressScreen({ navigation, route }) {
         </View>
       </View>
 
-      {/* Progress Bar */}
       <View style={styles.progressSection}>
         <Text style={styles.progressTitle}>Quran Progress</Text>
         <View style={styles.progressBarContainer}>
@@ -101,7 +74,6 @@ export default function ProgressScreen({ navigation, route }) {
         </Text>
       </View>
 
-      {/* Quick Actions */}
       <View style={styles.quickActions}>
         <TouchableOpacity 
           style={styles.actionButton}
@@ -113,10 +85,10 @@ export default function ProgressScreen({ navigation, route }) {
 
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => setActiveTab('reviews')}
+          onPress={() => navigation.navigate('Memorization')}
         >
-          <Ionicons name="refresh" size={24} color="#3b82f6" />
-          <Text style={styles.actionButtonText}>Due Reviews</Text>
+          <Ionicons name="add" size={24} color="#3b82f6" />
+          <Text style={styles.actionButtonText}>Continue Learning</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -169,72 +141,13 @@ export default function ProgressScreen({ navigation, route }) {
     </ScrollView>
   );
 
-  const renderReviews = () => (
-    <ScrollView style={styles.tabContent}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>
-          Due Reviews ({dueReviews.length})
-        </Text>
-      </View>
-
-      {dueReviews.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="checkmark-circle" size={64} color="#22c55e" />
-          <Text style={styles.emptyStateTitle}>All Caught Up!</Text>
-          <Text style={styles.emptyStateText}>
-            No reviews due today. Great job staying on track!
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={dueReviews}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.reviewItem}>
-              <View style={styles.reviewInfo}>
-                <Text style={styles.reviewTitle}>
-                  Surah {item.surah_number}, Ayah {item.ayah_number}
-                </Text>
-                <Text style={styles.reviewStatus}>
-                  {item.days_overdue === 0 ? 'Due today' : `${item.days_overdue} days overdue`}
-                </Text>
-              </View>
-              <TouchableOpacity style={styles.reviewButton}>
-                <Text style={styles.reviewButtonText}>Review</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          scrollEnabled={false}
-        />
-      )}
-    </ScrollView>
-  );
-
-  const renderCalendar = () => (
-    <ScrollView style={styles.tabContent}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Activity Calendar</Text>
-      </View>
-
-      <View style={styles.calendarPlaceholder}>
-        <Ionicons name="calendar" size={64} color="#6b7280" />
-        <Text style={styles.placeholderText}>Calendar view coming soon!</Text>
-        <Text style={styles.placeholderSubtext}>
-          Track your daily progress and streaks
-        </Text>
-      </View>
-    </ScrollView>
-  );
-
   const tabs = [
     { id: 'overview', label: 'Overview', icon: 'analytics' },
     { id: 'memorized', label: 'Memorized', icon: 'list' },
-    { id: 'reviews', label: 'Reviews', icon: 'refresh' },
-    { id: 'calendar', label: 'Calendar', icon: 'calendar' },
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="white" />
@@ -242,7 +155,6 @@ export default function ProgressScreen({ navigation, route }) {
         <Text style={styles.headerTitle}>Progress</Text>
       </View>
 
-      {/* Tab Navigation */}
       <View style={styles.tabContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {tabs.map((tab) => (
@@ -270,12 +182,9 @@ export default function ProgressScreen({ navigation, route }) {
         </ScrollView>
       </View>
 
-      {/* Tab Content */}
       <View style={styles.content}>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'memorized' && renderMemorized()}
-        {activeTab === 'reviews' && renderReviews()}
-        {activeTab === 'calendar' && renderCalendar()}
       </View>
     </View>
   );
@@ -290,7 +199,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -459,54 +367,5 @@ const styles = StyleSheet.create({
   },
   ayahBadge: {
     marginLeft: 12,
-  },
-  reviewItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-  },
-  reviewInfo: {
-    flex: 1,
-  },
-  reviewTitle: {
-    fontSize: 16,
-    color: 'white',
-    fontWeight: '600',
-  },
-  reviewStatus: {
-    fontSize: 14,
-    color: '#ff6b35',
-    marginTop: 4,
-  },
-  reviewButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  reviewButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  calendarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  placeholderText: {
-    fontSize: 18,
-    color: 'white',
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  placeholderSubtext: {
-    fontSize: 14,
-    color: '#a3a3a3',
-    textAlign: 'center',
   },
 });

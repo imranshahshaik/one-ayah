@@ -6,13 +6,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, Text, Dimensions } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Screens
 import HomeScreen from './src/screens/HomeScreen';
 import MemorizationScreen from './src/screens/MemorizationScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
-// Providers
 import { AuthProvider } from './src/providers/AuthProvider';
 
 const Tab = createMaterialTopTabNavigator();
@@ -76,7 +74,7 @@ function AppNavigator() {
           },
           tabBarActiveTintColor: '#22c55e',
           tabBarInactiveTintColor: '#6b7280',
-            tabBarStyle: {
+          tabBarStyle: {
             backgroundColor: '#1a1a1a',
             borderTopColor: 'rgba(255, 255, 255, 0.1)',
             borderTopWidth: 1,
