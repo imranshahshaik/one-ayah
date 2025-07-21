@@ -40,6 +40,8 @@ export default function MemorizationScreen({ navigation }) {
           playsInSilentModeIOS: true,
           shouldDuckAndroid: true,
           playThroughEarpieceAndroid: false,
+          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
         });
       } catch (error) {
         console.log('Audio setup error:', error);
@@ -52,12 +54,12 @@ export default function MemorizationScreen({ navigation }) {
       loadCurrentAyah();
     }
     
-    return sound
-      ? () => {
-          sound.unloadAsync();
-        }
-      : undefined;
-  }, [sound, progress, isInitialized]);
+    return () => {
+      if (sound) {
+        sound.unloadAsync().catch(console.error);
+      }
+    };
+  }, [progress, isInitialized]);
 
   useEffect(() => {
     if (currentAyah && memorizedAyahs.length >= 0) {
@@ -117,17 +119,22 @@ export default function MemorizationScreen({ navigation }) {
     try {
       if (sound) {
         await sound.unloadAsync();
+        setSound(null);
       }
 
       if (!currentAyah) return;
 
-      const audioUrl = `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${currentAyah.surah_number}/${currentAyah.ayah_number}.mp3`;
+      const audioUrl = `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${currentAyah.surah_number.toString().padStart(3, '0')}${currentAyah.ayah_number.toString().padStart(3, '0')}.mp3`;
       
       console.log('🔊 Playing audio:', audioUrl);
       
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: audioUrl },
-        { shouldPlay: true }
+        { 
+          shouldPlay: true,
+          isLooping: false,
+          progressUpdateIntervalMillis: 500,
+        }
       );
       
       setSound(newSound);
@@ -145,9 +152,14 @@ export default function MemorizationScreen({ navigation }) {
             setCurrentRepeat(0);
           }
         }
+        if (status.error) {
+          console.error('Audio playback error:', status.error);
+          setIsPlaying(false);
+        }
       });
     } catch (error) {
       console.error('❌ Error playing audio:', error);
+      setIsPlaying(false);
       Alert.alert('Audio Error', 'Could not play audio. Please check your internet connection.');
     }
   };

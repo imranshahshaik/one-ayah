@@ -3,8 +3,19 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, Dimensions } from 'react-native';
+import { View, Text, Dimensions, LogBox } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Ignore specific warnings that are not critical
+LogBox.ignoreLogs([
+  'Non-serializable values were found in the navigation state',
+  'VirtualizedLists should never be nested',
+]);
+
+// Enable performance optimizations
+if (__DEV__) {
+  console.log('🚀 OneAyah Mobile - Development Mode');
+}
 
 import HomeScreen from './src/screens/HomeScreen';
 import MemorizationScreen from './src/screens/MemorizationScreen';
@@ -135,8 +146,20 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="light" backgroundColor="#1a1a1a" />
-        <NavigationContainer>
+        <StatusBar style="light" backgroundColor="#1a1a1a" translucent={false} />
+        <NavigationContainer
+          theme={{
+            dark: true,
+            colors: {
+              primary: '#22c55e',
+              background: '#1a1a1a',
+              card: '#2d2d2d',
+              text: '#ffffff',
+              border: 'rgba(255, 255, 255, 0.1)',
+              notification: '#22c55e',
+            },
+          }}
+        >
           <AppNavigator />
         </NavigationContainer>
       </AuthProvider>

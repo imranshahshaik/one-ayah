@@ -4,7 +4,7 @@ index 1234567..1234567 100644
 +++ b/node_modules/react-native/react.gradle
 @@ -1,3 +1,3 @@
 -// Placeholder patch file for React Native compatibility
-+// React Native compatibility patch for SDK 53
++// React Native compatibility patch for SDK 52
  // This ensures proper dependency resolution
--// when using React Native 0.79.0 with Expo SDK 53
-+// when using React Native 0.79.0 with Expo SDK 53
+-// when using React Native 0.76.3 with Expo SDK 52
++// when using React Native 0.76.3 with Expo SDK 52

@@ -83,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
       const redirectTo = AuthSession.makeRedirectUri({
         useProxy: true,
+        scheme: 'oneayah',
       });
       
       console.log('OAuth redirect URL:', redirectTo);
@@ -106,33 +107,51 @@ export const AuthProvider = ({ children }) => {
       if (data.url) {
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
-          redirectTo
+          redirectTo,
+          {
+            showInRecents: false,
+            preferEphemeralSession: true,
+          }
         );
 
         if (result.type === 'success') {
           const url = result.url;
-          const params = new URLSearchParams(url.split('#')[1]);
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken) {
-            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-
-            if (sessionError) throw sessionError;
-            
-            console.log('✅ OAuth success');
-            return { success: true };
+          const hashParams = url.split('#')[1];
+          const searchParams = url.split('?')[1];
+          
+          let params;
+          if (hashParams) {
+            params = new URLSearchParams(hashParams);
+          } else if (searchParams) {
+            params = new URLSearchParams(searchParams);
           }
+          
+          if (params) {
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+
+            if (accessToken) {
+              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+              if (sessionError) throw sessionError;
+              
+              console.log('✅ OAuth success');
+              return { success: true };
+            }
+          }
+        } else if (result.type === 'cancel') {
+          console.log('OAuth flow cancelled by user');
+          return { success: false, error: 'Sign in was cancelled' };
         }
       }
 
-      throw new Error('OAuth flow was cancelled or failed');
+      throw new Error('OAuth flow failed - no valid response received');
     } catch (error) {
       console.error('❌ OAuth error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || 'Sign in failed' };
     } finally {
       setLoading(false);
     }
