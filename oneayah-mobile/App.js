@@ -1,168 +1,163 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ActivityIndicator,
+  SafeAreaView 
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, Dimensions, LogBox } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Ignore specific warnings that are not critical
-LogBox.ignoreLogs([
-  'Non-serializable values were found in the navigation state',
-  'VirtualizedLists should never be nested',
-]);
-
-// Enable performance optimizations
-if (__DEV__) {
-  console.log('🚀 OneAyah Mobile - Development Mode');
-}
-
-import HomeScreen from './src/screens/HomeScreen';
-import MemorizationScreen from './src/screens/MemorizationScreen';
-import ProgressScreen from './src/screens/ProgressScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-
-import { AuthProvider } from './src/providers/AuthProvider';
-
-const Tab = createMaterialTopTabNavigator();
-const { width } = Dimensions.get('window');
-
-function TabBarIcon({ name, focused, color }) {
-  return <Ionicons name={name} size={24} color={color} />;
-}
-
-function TabBarLabel({ label, focused, color }) {
-  return (
-    <Text style={{
-      color,
-      fontSize: 12,
-      fontWeight: focused ? '600' : '400',
-      marginTop: 4,
-    }}>
-      {label}
-    </Text>
-  );
-}
-
-function AppNavigator() {
-  const insets = useSafeAreaInsets();
-  
-  return (
-    <View style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
-      <Tab.Navigator
-        initialRouteName="Home"
-        tabBarPosition="bottom"
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused, color }) => {
-            let iconName;
-
-            if (route.name === 'Home') {
-              iconName = focused ? 'home' : 'home-outline';
-            } else if (route.name === 'Memorization') {
-              iconName = focused ? 'book' : 'book-outline';
-            } else if (route.name === 'Progress') {
-              iconName = focused ? 'analytics' : 'analytics-outline';
-            } else if (route.name === 'Settings') {
-              iconName = focused ? 'settings' : 'settings-outline';
-            }
-
-            return <TabBarIcon name={iconName} focused={focused} color={color} />;
-          },
-          tabBarLabel: ({ focused, color }) => {
-            let label;
-            
-            if (route.name === 'Home') {
-              label = 'Home';
-            } else if (route.name === 'Memorization') {
-              label = 'Memorize';
-            } else if (route.name === 'Progress') {
-              label = 'Progress';
-            } else if (route.name === 'Settings') {
-              label = 'Settings';
-            }
-
-            return <TabBarLabel label={label} focused={focused} color={color} />;
-          },
-          tabBarActiveTintColor: '#22c55e',
-          tabBarInactiveTintColor: '#6b7280',
-          tabBarStyle: {
-            backgroundColor: '#1a1a1a',
-            borderTopColor: 'rgba(255, 255, 255, 0.1)',
-            borderTopWidth: 1,
-            height: Math.max(80, 80 + insets.bottom),
-            paddingBottom: Math.max(8, insets.bottom),
-            paddingTop: 8,
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOffset: {
-              width: 0,
-              height: -2,
-            },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-          },
-          tabBarItemStyle: {
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingVertical: 8,
-            width: width / 4,
-          },
-          tabBarIndicatorStyle: {
-            backgroundColor: '#22c55e',
-            height: 3,
-            borderRadius: 2,
-            top: 0,
-          },
-          tabBarPressColor: 'rgba(34, 197, 94, 0.1)',
-          tabBarPressOpacity: 0.8,
-          swipeEnabled: true,
-          animationEnabled: true,
-          tabBarScrollEnabled: false,
-        })}
-      >
-        <Tab.Screen 
-          name="Home" 
-          component={HomeScreen}
-        />
-        <Tab.Screen 
-          name="Memorization" 
-          component={MemorizationScreen}
-        />
-        <Tab.Screen 
-          name="Progress" 
-          component={ProgressScreen}
-        />
-        <Tab.Screen 
-          name="Settings" 
-          component={SettingsScreen}
-        />
-      </Tab.Navigator>
-    </View>
-  );
-}
-
+// Simple test component to ensure the app loads
 export default function App() {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    // Simulate app initialization
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isReady) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar style="light" backgroundColor="#1a1a1a" />
+        <ActivityIndicator size="large" color="#22c55e" />
+        <Text style={styles.loadingText}>Loading OneAyah...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="light" backgroundColor="#1a1a1a" translucent={false} />
-        <NavigationContainer
-          theme={{
-            dark: true,
-            colors: {
-              primary: '#22c55e',
-              background: '#1a1a1a',
-              card: '#2d2d2d',
-              text: '#ffffff',
-              border: 'rgba(255, 255, 255, 0.1)',
-              notification: '#22c55e',
-            },
-          }}
-        >
-          <AppNavigator />
-        </NavigationContainer>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="light" backgroundColor="#1a1a1a" />
+      
+      <View style={styles.header}>
+        <Ionicons name="book" size={60} color="#22c55e" />
+        <Text style={styles.title}>OneAyah Mobile</Text>
+        <Text style={styles.subtitle}>Your Quran Memorization Journey</Text>
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.description}>
+          Memorize one ayah a day in 5 minutes.{'\n'}
+          Start where you want. Listen. Repeat. Remember.
+        </Text>
+
+        <TouchableOpacity style={styles.button}>
+          <Ionicons name="play" size={20} color="white" />
+          <Text style={styles.buttonText}>Get Started</Text>
+        </TouchableOpacity>
+
+        <View style={styles.features}>
+          <View style={styles.feature}>
+            <Ionicons name="checkmark-circle" size={24} color="#22c55e" />
+            <Text style={styles.featureText}>Track Progress</Text>
+          </View>
+          <View style={styles.feature}>
+            <Ionicons name="flame" size={24} color="#ff6b35" />
+            <Text style={styles.featureText}>Build Streaks</Text>
+          </View>
+          <View style={styles.feature}>
+            <Ionicons name="volume-high" size={24} color="#3b82f6" />
+            <Text style={styles.featureText}>Audio Playback</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>OneAyah v1.0.0</Text>
+      </View>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 18,
+    marginTop: 16,
+  },
+  header: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 40,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: 'white',
+    marginTop: 16,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#a3a3a3',
+    marginTop: 8,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  description: {
+    fontSize: 16,
+    color: '#a3a3a3',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 40,
+  },
+  button: {
+    backgroundColor: '#22c55e',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 25,
+    marginBottom: 40,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  features: {
+    width: '100%',
+    gap: 20,
+  },
+  feature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 16,
+    borderRadius: 12,
+  },
+  featureText: {
+    color: 'white',
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  footerText: {
+    color: '#6b7280',
+    fontSize: 12,
+  },
+});

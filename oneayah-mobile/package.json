@@ -1,7 +1,7 @@
 {
   "name": "oneayah-mobile",
   "version": "1.0.0",
-  "main": "expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -29,7 +29,9 @@
     "expo-web-browser": "~14.0.1",
     "react-native-tab-view": "^3.5.2",
     "react-native-pager-view": "6.4.1",
-    "expo-linking": "~7.0.3"
+    "expo-linking": "~7.0.3",
+    "expo-constants": "~17.0.3",
+    "expo-font": "~13.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
