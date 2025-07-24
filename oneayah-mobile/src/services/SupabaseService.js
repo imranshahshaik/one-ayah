@@ -214,6 +214,144 @@ class SupabaseService {
       throw error;
     }
   }
+
+  async getSurahs() {
+    try {
+      const { data, error } = await supabase.from('surahs').select('*').order('number');
+      if (error) {
+        console.error('Error fetching surahs:', error);
+        return [];
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching surahs:', error);
+      return [];
+    }
+  }
+
+  async addMemorizedAyah(surah, ayah, pageNumber, reviewResult) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      const { data, error } = await supabase
+        .from('memorized_ayahs')
+        .insert({
+          user_id: user.id,
+          surah_number: surah,
+          ayah_number: ayah,
+          page_number: pageNumber,
+          ...reviewResult,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await this.updateUserProgress({
+        last_visited_surah: surah,
+        last_visited_ayah: ayah,
+        last_memorized_date: new Date().toISOString().split('T')[0],
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error adding memorized ayah:', error);
+      throw error;
+    }
+  }
+
+  async getProgressStats() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const [
+        { data: memorizedAyahs, error: memorizedError },
+        { data: userProgress, error: progressError },
+      ] = await Promise.all([
+        supabase.from('memorized_ayahs').select('id').eq('user_id', user.id),
+        supabase.from('user_progress').select('*').eq('user_id', user.id).single(),
+      ]);
+
+      if (memorizedError || progressError) {
+        console.error('Error fetching progress stats:', memorizedError || progressError);
+        return null;
+      }
+
+      return {
+        totalMemorized: memorizedAyahs.length,
+        ...userProgress,
+      };
+    } catch (error) {
+      console.error('Error fetching progress stats:', error);
+      return null;
+    }
+  }
+
+  async getUserSettings() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+      throw error;
+    }
+  }
+
+  async updateUserSettings(settings) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          ...settings,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating user settings:', error);
+      throw error;
+    }
+  }
+
+  async deleteMemorizedAyah(surah, ayah) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      const { error } = await supabase
+        .from('memorized_ayahs')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('surah_number', surah)
+        .eq('ayah_number', ayah);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting memorized ayah:', error);
+      throw error;
+    }
+  }
 }
 
 export const supabaseService = new SupabaseService();
